@@ -1,0 +1,52 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+
+@theme {
+  --color-primary: #2b8cee;
+  --color-background-dark: #101922;
+  --color-surface: #1a2530;
+  --color-border: #2d3a4b;
+}
+
+/* Custom canvas grid */
+.canvas-grid {
+  background-size: 40px 40px;
+  background-image: radial-gradient(circle, #2b8cee33 1px, transparent 1px);
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.25s ease-out;
+}
+
+@keyframes node-pop {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+
+  70% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-node-pop {
+  animation: node-pop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  transform-origin: center;
+}
