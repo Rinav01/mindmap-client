@@ -6,6 +6,7 @@ import { useDragContext } from "../../context/DragContext";
 
 interface Props {
   node: NodeType;
+  hasChildren: boolean;
 }
 
 // Small icon shown to the left of node text
@@ -24,8 +25,8 @@ function NodeIcon({ isRoot }: { isRoot: boolean }) {
   );
 }
 
-function Node({ node }: Props) {
-  const selectedNodeId = useEditorStore((s) => s.selectedNodeId);
+function Node({ node, hasChildren }: Props) {
+  const selectedNodeIds = useEditorStore((s) => s.selectedNodeIds);
   const selectNode = useEditorStore((s) => s.selectNode);
   const createNode = useEditorStore((s) => s.createNode);
   const isPanMode = useEditorStore((s) => s.isPanMode);
@@ -33,6 +34,7 @@ function Node({ node }: Props) {
   const startEditing = useEditorStore((s) => s.startEditing);
   const updateNodeText = useEditorStore((s) => s.updateNodeText);
   const cancelEditing = useEditorStore((s) => s.cancelEditing);
+  const toggleNodeCollapse = useEditorStore((s) => s.toggleNodeCollapse);
 
   // Drag engine from context — no Zustand subscription needed
   const dragEngine = useDragContext();
@@ -44,7 +46,7 @@ function Node({ node }: Props) {
   const { id } = useParams();
 
   const isRoot = !node.parentId;
-  const isSelected = selectedNodeId === node._id;
+  const isSelected = selectedNodeIds.has(node._id);
   const isEditing = editingNodeId === node._id;
   const [editText, setEditText] = useState(node.text);
   const [isHovered, setIsHovered] = useState(false);
@@ -93,7 +95,40 @@ function Node({ node }: Props) {
 
   return (
     // Outer <g> gets the ref — the drag engine mutates its transform attribute directly
-    <g ref={groupRef} transform={`translate(${node.x}, ${node.y})`}>
+    <g
+      id={`node-group-${node._id}`}
+      ref={groupRef}
+      transform={`translate(${node.x}, ${node.y})`}
+    >
+      {/* Collapse/Expand Toggle (only if children exist) */}
+      {hasChildren && (
+        <g
+          transform={`translate(${NODE_W + 12}, ${NODE_H / 2})`}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleNodeCollapse(node._id);
+          }}
+          style={{ cursor: "pointer" }}
+        >
+          <circle r="8" fill="#1e293b" stroke="#334155" strokeWidth="1.5" />
+          {node.collapsed ? (
+            // Plus icon
+            <g stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round">
+              <line x1="-3" y1="0" x2="3" y2="0" />
+              <line x1="0" y1="-3" x2="0" y2="3" />
+            </g>
+          ) : (
+            // Minus icon or chevron
+            <g stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round">
+              {/* Use a simple dot or chevron? Let's use a minus for expand */}
+              {/* actually, conventionally: - means expanded (can collapse), + means collapsed (can expand) */}
+              {/* The mock UI used a chevron. Let's stick to standard tree view: - / + */}
+              <line x1="-3" y1="0" x2="3" y2="0" />
+            </g>
+          )}
+        </g>
+      )}
       {/* Pop animation wrapper */}
       <g
         style={{
@@ -104,7 +139,9 @@ function Node({ node }: Props) {
             "opacity 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)",
         }}
         onMouseDown={(e) => {
+          // In pan mode, let the event bubble to the canvas to handle panning.
           if (isPanMode) return;
+
           clickStartRef.current = { x: e.clientX, y: e.clientY };
           if (!isEditing && groupRef.current) {
             e.stopPropagation();
@@ -151,16 +188,17 @@ function Node({ node }: Props) {
           strokeWidth={strokeWidth}
           style={{ transition: "stroke 0.2s, fill 0.2s" }}
           onClick={(e) => {
-            e.stopPropagation();
             if (isPanMode) return;
+            e.stopPropagation();
             if (clickStartRef.current) {
               const dx = e.clientX - clickStartRef.current.x;
               const dy = e.clientY - clickStartRef.current.y;
               if (Math.sqrt(dx * dx + dy * dy) > 10) return;
             }
-            if (!isEditing) selectNode(node._id);
+            if (!isEditing) selectNode(node._id, e.shiftKey);
           }}
           onDoubleClick={(e) => {
+            if (isPanMode) return;
             e.stopPropagation();
             startEditing(node._id);
             setEditText(node.text);
@@ -238,6 +276,7 @@ function Node({ node }: Props) {
             strokeWidth="1.5"
             style={{ cursor: "pointer" }}
             onClick={(e) => {
+              if (isPanMode) return;
               e.stopPropagation();
               if (id) createNode(id, node);
             }}

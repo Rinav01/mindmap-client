@@ -9,11 +9,12 @@ export interface NodeType {
     parentId: string | null;
     color?: string;
     fontSize?: number;
+    collapsed?: boolean;
 }
 
 interface EditorState {
     nodes: NodeType[];
-    selectedNodeId: string | null;
+    selectedNodeIds: Set<string>;
     zoom: number;
     panOffset: { x: number; y: number };
     isPanning: boolean;
@@ -27,7 +28,18 @@ interface EditorState {
 
     loadNodes: (mindMapId: string) => Promise<void>;
     setMapTitle: (mindMapId: string, title: string) => Promise<void>;
-    selectNode: (id: string) => void;
+
+    /** 
+     * Select a node. 
+     * @param id The node ID.
+     * @param multi If true (Shift key), toggle selection. If false, exclusive select.
+     */
+    selectNode: (id: string, multi?: boolean) => void;
+
+    /** Select multiple nodes (e.g. Lasso) */
+    selectNodes: (ids: string[], multi?: boolean) => void;
+
+    deselectAll: () => void;
 
     createNode: (
         mindMapId: string,
@@ -36,6 +48,7 @@ interface EditorState {
 
     /** Called by the drag engine on mouseup with the final position. */
     commitDragEnd: (id: string, x: number, y: number) => Promise<void>;
+    commitBatchDragEnd: (updates: { id: string; x: number; y: number }[]) => Promise<void>;
     setZoom: (zoom: number) => void;
 
     startPan: () => void;
@@ -49,7 +62,10 @@ interface EditorState {
     updateNodeColor: (id: string, color: string) => Promise<void>;
     updateNodeFontSize: (id: string, fontSize: number) => Promise<void>;
     cancelEditing: () => void;
+    toggleNodeCollapse: (id: string) => void;
 
+    deleteSelectedNodes: () => Promise<void>;
+    // Legacy single delete for compatibility refactor if needed (prefer deleteSelectedNodes)
     deleteNode: (id: string) => Promise<void>;
 
     autoLayout: () => Promise<void>;
@@ -63,7 +79,7 @@ interface EditorState {
 
 export const useEditorStore = create<EditorState>((set, get) => ({
     nodes: [],
-    selectedNodeId: null,
+    selectedNodeIds: new Set(),
     zoom: 1,
     panOffset: { x: 0, y: 0 },
     isPanning: false,
@@ -90,7 +106,27 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         }
     },
 
-    selectNode: (id) => set({ selectedNodeId: id }),
+    selectNode: (id, multi = false) => {
+        set((state) => {
+            const newSet = new Set(multi ? state.selectedNodeIds : []);
+            if (multi && newSet.has(id)) {
+                newSet.delete(id);
+            } else {
+                newSet.add(id);
+            }
+            return { selectedNodeIds: newSet };
+        });
+    },
+
+    selectNodes: (ids, multi = false) => {
+        set((state) => {
+            const newSet = new Set(multi ? state.selectedNodeIds : []);
+            ids.forEach(id => newSet.add(id));
+            return { selectedNodeIds: newSet };
+        });
+    },
+
+    deselectAll: () => set({ selectedNodeIds: new Set() }),
 
     createNode: async (mindMapId, parent) => {
         const res = await api.post("/mindmaps/nodes", {
@@ -100,12 +136,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             y: parent.y,
         });
 
-        set({ nodes: [...get().nodes, res.data] });
+        const newNode = res.data;
+        set({
+            nodes: [...get().nodes, newNode],
+            selectedNodeIds: new Set([newNode._id]) // Auto-select new node
+        });
         get().pushHistory();
     },
 
     commitDragEnd: async (id, x, y) => {
-        // Update the store with the final position (one write)
+        // Single node commit (legacy or specific use)
         set({
             nodes: get().nodes.map((n) =>
                 n._id === id ? { ...n, x, y } : n
@@ -116,6 +156,25 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             get().pushHistory();
         } catch (err) {
             console.error("Failed to save node position:", err);
+        }
+    },
+
+    commitBatchDragEnd: async (updates) => {
+        // Optimistic update for all
+        set({
+            nodes: get().nodes.map((n) => {
+                const update = updates.find(u => u.id === n._id);
+                return update ? { ...n, x: update.x, y: update.y } : n;
+            }),
+        });
+
+        // Sync all to backend
+        // In a real app, might want a batch API endpoint. For now, loop requests (or use Promise.all)
+        try {
+            await Promise.all(updates.map(u => api.patch(`/mindmaps/nodes/${u.id}`, { x: u.x, y: u.y })));
+            get().pushHistory();
+        } catch (err) {
+            console.error("Failed to save batch positions:", err);
         }
     },
 
@@ -188,16 +247,61 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     cancelEditing: () => set({ editingNodeId: null }),
 
     deleteNode: async (id) => {
+        // Legacy wrapper: delete just this one
+        // In new model, we should prefer deleteSelectedNodes if id matches selection
         try {
             await api.delete(`/mindmaps/nodes/${id}`);
-            // Filter out the deleted node and its children
             set({
                 nodes: get().nodes.filter((n) => n._id !== id && n.parentId !== id),
-                selectedNodeId: null,
+                selectedNodeIds: new Set(),
             });
             get().pushHistory();
         } catch (err) {
             console.error("Failed to delete node:", err);
+        }
+    },
+
+    deleteSelectedNodes: async () => {
+        const { selectedNodeIds, nodes } = get();
+        if (selectedNodeIds.size === 0) return;
+
+        const idsToDelete = Array.from(selectedNodeIds);
+
+        try {
+            // Ideally a batch delete API, else loop
+            await Promise.all(idsToDelete.map(id => api.delete(`/mindmaps/nodes/${id}`)));
+
+            // Filter out deleted nodes AND their children
+            // Note: If we delete a parent, children are usually deleted by backend cascade or we must do it.
+            // Assuming simplified client-side filter for now:
+
+            // To be safe, let's fetch fresh? Or just filter carefully.
+            // If backend cascades, we just need to remove them from local state.
+            // Let's assume manual recursion in state update for now.
+
+            // Note: simple filter might leave orphans if backend doesn't cascade. 
+            // Better to re-fetch or trust backend cascade. 
+            // For now, removing exact IDs + children of those IDs from state.
+
+            const toRemove = new Set(idsToDelete);
+            let changed = true;
+            while (changed) {
+                changed = false;
+                nodes.forEach(n => {
+                    if (n.parentId && toRemove.has(n.parentId) && !toRemove.has(n._id)) {
+                        toRemove.add(n._id);
+                        changed = true;
+                    }
+                });
+            }
+
+            set({
+                nodes: nodes.filter(n => !toRemove.has(n._id)),
+                selectedNodeIds: new Set(),
+            });
+            get().pushHistory();
+        } catch (err) {
+            console.error("Failed to delete nodes:", err);
         }
     },
 
@@ -255,54 +359,84 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         set({ zoom: newZoom, panOffset: { x: panX, y: panY } });
     },
 
-    pushHistory: () => {
-        const { nodes, history, historyIndex } = get();
+    toggleNodeCollapse: (id) => {
+        set((state) => {
+            const nodeIndex = state.nodes.findIndex((n) => n._id === id);
+            if (nodeIndex === -1) return {};
 
-        // Remove any "future" history if we're not at the end
-        const newHistory = history.slice(0, historyIndex + 1);
+            const node = state.nodes[nodeIndex];
+            // Toggle collapsed state (undefined -> true, true -> false, false -> true)
+            const newCollapsed = !node.collapsed;
 
-        // Add current state (deep clone)
-        newHistory.push(JSON.parse(JSON.stringify(nodes)));
+            const newNodes = [...state.nodes];
+            newNodes[nodeIndex] = { ...node, collapsed: newCollapsed };
 
-        // Limit to 50 items
-        if (newHistory.length > 50) {
-            newHistory.shift();
-            set({ history: newHistory });
-        } else {
-            set({
-                history: newHistory,
-                historyIndex: historyIndex + 1,
-            });
-        }
-    },
+            let newSelectedIds = state.selectedNodeIds;
 
-    undo: async () => {
-        const { history, historyIndex } = get();
+            // If collapsing, deselect all descendants
+            if (newCollapsed) {
+                const descendantIds = new Set<string>();
 
-        if (historyIndex <= 0) return;
+                // Helper to find descendants
+                const findDescendants = (parentId: string) => {
+                    const children = newNodes.filter(n => n.parentId === parentId);
+                    for (const child of children) {
+                        descendantIds.add(child._id);
+                        findDescendants(child._id);
+                    }
+                };
+                findDescendants(id);
 
-        const newIndex = historyIndex - 1;
-        const snapshot = history[newIndex];
-
-        // Sync to backend
-        try {
-            for (const node of snapshot) {
-                await api.patch(`/mindmaps/nodes/${node._id}`, {
-                    x: node.x,
-                    y: node.y,
-                    text: node.text,
+                // If any selected node is a descendant, remove it
+                let intersection = false;
+                descendantIds.forEach(descId => {
+                    if (newSelectedIds.has(descId)) intersection = true;
                 });
+
+                if (intersection) {
+                    newSelectedIds = new Set(state.selectedNodeIds);
+                    descendantIds.forEach(descId => newSelectedIds.delete(descId));
+                }
             }
 
-            set({
-                nodes: JSON.parse(JSON.stringify(snapshot)),
-                historyIndex: newIndex,
-            });
-        } catch (err) {
-            console.error("Failed to undo:", err);
-        }
+            return {
+                nodes: newNodes,
+                selectedNodeIds: newSelectedIds
+            };
+        });
     },
 
+    pushHistory: () => {
+        const { nodes } = get();
+        set((state) => {
+            const newHistory = state.history.slice(0, state.historyIndex + 1);
+            newHistory.push(JSON.parse(JSON.stringify(nodes)));
+            // Limit to 50 items
+            if (newHistory.length > 50) {
+                newHistory.shift();
+                return {
+                    history: newHistory,
+                    // historyIndex stays at length-1 (49)
+                    historyIndex: newHistory.length - 1
+                };
+            }
+            return {
+                history: newHistory,
+                historyIndex: newHistory.length - 1,
+            };
+        });
+    },
+    undo: async () => {
+        const { history, historyIndex } = get();
+        if (historyIndex > 0) {
+            const newIndex = historyIndex - 1;
+            set({
+                nodes: history[newIndex],
+                historyIndex: newIndex,
+                selectedNodeIds: new Set(), // clear selection on undo
+            });
+        }
+    },
     redo: async () => {
         const { history, historyIndex } = get();
 

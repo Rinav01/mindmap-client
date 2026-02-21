@@ -26,10 +26,39 @@ export default function NodeLayer() {
   const isNewMap = nodes.length === 1;
   const root = nodes[0];
 
+
+  // Precompute parent -> children map for O(1) lookup
+  const childrenMap = new Map<string | null, typeof nodes>();
+  nodes.forEach(node => {
+    const pId = node.parentId;
+    if (!childrenMap.has(pId)) childrenMap.set(pId, []);
+    childrenMap.get(pId)?.push(node);
+  });
+
+  // Recursive visibility filter
+  const visibleNodes: typeof nodes = [];
+  const traverse = (parentId: string | null) => {
+    const children = childrenMap.get(parentId);
+    if (!children) return;
+
+    for (const child of children) {
+      visibleNodes.push(child);
+      // Only traverse deeper if NOT collapsed
+      if (!child.collapsed) {
+        traverse(child._id);
+      }
+    }
+  };
+  traverse(null); // Start with roots
+
   return (
     <>
-      {nodes.map((node) => (
-        <Node key={node._id} node={node} />
+      {visibleNodes.map((node) => (
+        <Node
+          key={node._id}
+          node={node}
+          hasChildren={childrenMap.has(node._id)}
+        />
       ))}
 
       {/* Empty state hint for new maps with only root node */}

@@ -18,15 +18,17 @@ const sectionLabel: React.CSSProperties = {
 export default function NodePropertiesPanel() {
     const {
         nodes,
-        selectedNodeId,
-        deleteNode,
+        selectedNodeIds,
+        deleteSelectedNodes,
         updateNodeText,
         updateNodeColor,
         updateNodeFontSize,
-        selectNode,
+        deselectAll,
     } = useEditorStore();
 
-    const selectedNode = nodes.find((n) => n._id === selectedNodeId);
+    // Only show panel if exactly one node is selected
+    const singleSelectedId = selectedNodeIds.size === 1 ? selectedNodeIds.values().next().value : null;
+    const selectedNode = singleSelectedId ? nodes.find((n) => n._id === singleSelectedId) : null;
 
     const [title, setTitle] = useState("");
     const [notes, setNotes] = useState("");
@@ -63,7 +65,7 @@ export default function NodePropertiesPanel() {
                     Node Properties
                 </span>
                 <button
-                    onClick={() => selectNode("")}
+                    onClick={() => deselectAll()}
                     style={{
                         background: "none", border: "none", cursor: "pointer",
                         color: "#6b7280", fontSize: "18px", lineHeight: 1, padding: "2px 4px",
@@ -77,21 +79,26 @@ export default function NodePropertiesPanel() {
             <div style={{ padding: "18px", display: "flex", flexDirection: "column", gap: "20px" }}>
                 {/* Node Title */}
                 <div>
-                    <div style={sectionLabel}>Node Title</div>
+                    <label htmlFor="node-title" style={sectionLabel}>Node Title</label>
                     <input
+                        id="node-title"
+                        name="node-title"
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
                         onBlur={() => updateNodeText(selectedNode._id, title)}
                         onKeyDown={(e) => { if (e.key === "Enter") updateNodeText(selectedNode._id, title); }}
                         style={inputStyle}
                         onFocus={(e) => { e.currentTarget.style.borderColor = "#3b82f6"; }}
+                        autoComplete="off"
                     />
                 </div>
 
                 {/* Notes */}
                 <div>
-                    <div style={sectionLabel}>Notes</div>
+                    <label htmlFor="node-notes" style={sectionLabel}>Notes</label>
                     <textarea
+                        id="node-notes"
+                        name="node-notes"
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
                         placeholder="Add notes..."
@@ -101,6 +108,7 @@ export default function NodePropertiesPanel() {
                         }}
                         onFocus={(e) => { e.currentTarget.style.borderColor = "#3b82f6"; }}
                         onBlur={(e) => { e.currentTarget.style.borderColor = "#334155"; }}
+                        autoComplete="off"
                     />
                 </div>
 
@@ -226,7 +234,7 @@ export default function NodePropertiesPanel() {
             {/* Delete */}
             <div style={{ padding: "0 18px 18px", marginTop: "auto" }}>
                 <button
-                    onClick={() => deleteNode(selectedNode._id)}
+                    onClick={() => deleteSelectedNodes()}
                     style={{
                         width: "100%", padding: "11px",
                         background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)",

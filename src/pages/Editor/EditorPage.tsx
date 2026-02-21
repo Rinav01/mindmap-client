@@ -22,10 +22,12 @@ export default function EditorPage() {
   const createNode = useEditorStore((s) => s.createNode);
   const deleteNode = useEditorStore((s) => s.deleteNode);
   const selectNode = useEditorStore((s) => s.selectNode);
+  const deselectAll = useEditorStore((s) => s.deselectAll);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
-  const selectedNodeId = useEditorStore((s) => s.selectedNodeId);
+  const selectedNodeIds = useEditorStore((s) => s.selectedNodeIds);
   const editingNodeId = useEditorStore((s) => s.editingNodeId);
+  const deleteSelectedNodes = useEditorStore((s) => s.deleteSelectedNodes);
 
   const [toast, setToast] = useState<ToastState | null>(null);
   const dismissToast = useCallback(() => setToast(null), []);
@@ -38,31 +40,29 @@ export default function EditorPage() {
   // Node interaction shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const { selectedNodeId, editingNodeId, nodes } =
+      const { selectedNodeIds, editingNodeId } =
         useEditorStore.getState();
 
       if (editingNodeId) return;
-      if (!selectedNodeId) return;
 
-      const selectedNode = nodes.find((n) => n._id === selectedNodeId);
-      if (!selectedNode) return;
-
-      if (e.key === "Delete") {
-        e.preventDefault();
-        deleteNode(selectedNodeId).then(() => {
-          setToast({
-            message: "Node deleted",
-            onUndo: undo,
+      if (e.key === "Delete" || e.key === "Backspace") {
+        if (selectedNodeIds.size > 0) {
+          e.preventDefault();
+          deleteSelectedNodes().then(() => {
+            setToast({
+              message: `${selectedNodeIds.size} node(s) deleted`,
+              onUndo: undo,
+            });
           });
-        });
+        }
       } else if (e.key === "Escape") {
-        selectNode("");
+        deselectAll();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [deleteNode, selectNode, undo]);
+  }, [deleteSelectedNodes, deselectAll, undo]);
 
   // Undo / Redo shortcuts
   useEffect(() => {
@@ -81,9 +81,27 @@ export default function EditorPage() {
   }, [undo, redo]);
 
   const handleAddNode = () => {
-    const { selectedNodeId, nodes } = useEditorStore.getState();
-    const selectedNode = nodes.find((n) => n._id === selectedNodeId);
+    const { selectedNodeIds, nodes } = useEditorStore.getState();
+    if (selectedNodeIds.size !== 1) return; // Only allow adding to single parent for now
+
+    // Get the single ID
+    const parentId = selectedNodeIds.values().next().value;
+    const selectedNode = nodes.find((n) => n._id === parentId);
+
     if (!selectedNode || !id) return;
+
+    // Add logic (same as before)
+    // If we want to add a sibling if parent has one? 
+    // Original logic: if (selectedNode.parentId) add sibling? 
+    // Actually the original logic was:
+    // if parentId exists, createNode(id, parent). Else createNode(id, selectedNode) -> child of root.
+    // Wait, original logic:
+    // if (selectedNode.parentId) { const parent = ...; createNode(id, parent); } else { createNode(id, selectedNode); }
+    // This implies "Add Node" adds a SIBLING if not root, and CHILD if root? 
+    // Typically "Add Node" on a selected node adds a CHILD.
+    // "Enter" often adds a sibling.
+    // Let's stick to the exact logic from before for safety.
+
     if (selectedNode.parentId) {
       const parent = nodes.find((n) => n._id === selectedNode.parentId);
       if (parent) createNode(id, parent);
@@ -93,14 +111,14 @@ export default function EditorPage() {
   };
 
   const handleDelete = useCallback(() => {
-    const { selectedNodeId } = useEditorStore.getState();
-    if (!selectedNodeId) return;
-    deleteNode(selectedNodeId).then(() => {
-      setToast({ message: "Node deleted", onUndo: undo });
+    const { selectedNodeIds } = useEditorStore.getState();
+    if (selectedNodeIds.size === 0) return;
+    deleteSelectedNodes().then(() => {
+      setToast({ message: "Nodes deleted", onUndo: undo });
     });
-  }, [deleteNode, undo]);
+  }, [deleteSelectedNodes, undo]);
 
-  const panelOpen = !!selectedNodeId;
+  const panelOpen = selectedNodeIds.size === 1;
 
   return (
     <div style={{ height: "100vh", background: "#0f172a", overflow: "hidden", position: "relative", fontFamily: "Inter, sans-serif" }}>

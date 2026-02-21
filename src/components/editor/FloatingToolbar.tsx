@@ -7,13 +7,20 @@ interface Props {
 
 export default function FloatingToolbar({ onDelete }: Props) {
     const { id } = useParams();
-    const selectedNodeId = useEditorStore((s) => s.selectedNodeId);
+    const selectedNodeIds = useEditorStore((s) => s.selectedNodeIds);
     const nodes = useEditorStore((s) => s.nodes);
     const createNode = useEditorStore((s) => s.createNode);
-    const deleteNode = useEditorStore((s) => s.deleteNode);
+    const deleteSelectedNodes = useEditorStore((s) => s.deleteSelectedNodes);
     const startEditing = useEditorStore((s) => s.startEditing);
 
-    const selectedNode = nodes.find((n) => n._id === selectedNodeId);
+    // For toolbar, if multiple selected, dragging is main action.
+    // If single selected, show standard toolbar.
+    // If multiple, maybe show only Delete?
+    // Let's stick to single node actions if 1 selected, else just Delete.
+
+    const singleSelectedId = selectedNodeIds.size === 1 ? selectedNodeIds.values().next().value : null;
+    const selectedNode = singleSelectedId ? nodes.find((n) => n._id === singleSelectedId) : null;
+    const hasSelection = selectedNodeIds.size > 0;
 
     const handleAddNode = () => {
         if (!selectedNode || !id) return;
@@ -30,13 +37,13 @@ export default function FloatingToolbar({ onDelete }: Props) {
     const handleDelete = () => {
         if (onDelete) {
             onDelete();
-        } else if (selectedNodeId) {
-            deleteNode(selectedNodeId);
+        } else if (hasSelection) {
+            deleteSelectedNodes();
         }
     };
 
     const handleEditText = () => {
-        if (selectedNodeId) startEditing(selectedNodeId);
+        if (singleSelectedId) startEditing(singleSelectedId);
     };
 
     const toolItems = [
@@ -82,14 +89,14 @@ export default function FloatingToolbar({ onDelete }: Props) {
             disabled: true,
         },
         {
-            title: selectedNode ? "Delete selected node" : "Select a node first",
+            title: hasSelection ? (selectedNodeIds.size > 1 ? `Delete ${selectedNodeIds.size} nodes` : "Delete selected node") : "Select a node first",
             icon: (
                 <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" />
                 </svg>
             ),
             onClick: handleDelete,
-            disabled: !selectedNode,
+            disabled: !hasSelection,
             danger: true,
         },
     ];

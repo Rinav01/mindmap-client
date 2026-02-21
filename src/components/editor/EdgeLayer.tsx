@@ -19,13 +19,33 @@ export default function EdgeLayer() {
 
 export function EdgeLayerPaths() {
   const nodes = useEditorStore((s) => s.nodes);
-  const selectedNodeId = useEditorStore((s) => s.selectedNodeId);
+  const selectedNodeIds = useEditorStore((s) => s.selectedNodeIds);
   const { registerEdge } = useDragContext();
+
+  // Precompute visibility set
+  const childrenMap = new Map<string | null, typeof nodes>();
+  nodes.forEach(node => {
+    const pId = node.parentId;
+    if (!childrenMap.has(pId)) childrenMap.set(pId, []);
+    childrenMap.get(pId)?.push(node);
+  });
+
+  const visibleNodeIds = new Set<string>();
+  const traverse = (parentId: string | null) => {
+    const children = childrenMap.get(parentId);
+    if (!children) return;
+    for (const child of children) {
+      visibleNodeIds.add(child._id);
+      if (!child.collapsed) traverse(child._id);
+    }
+  };
+  traverse(null);
 
   return (
     <>
       {nodes.map((node) => {
         if (!node.parentId) return null;
+        if (!visibleNodeIds.has(node._id)) return null;
 
         const parent = nodes.find(
           (n) => n._id === node.parentId
@@ -42,8 +62,8 @@ export function EdgeLayerPaths() {
 
         // Highlight edge if either endpoint is selected
         const isHighlighted =
-          selectedNodeId === node._id ||
-          selectedNodeId === node.parentId;
+          selectedNodeIds.has(node._id) ||
+          selectedNodeIds.has(node.parentId);
 
         return (
           <path
