@@ -7,6 +7,7 @@ import { useDragContext } from "../../context/DragContext";
 interface Props {
   node: NodeType;
   hasChildren: boolean;
+  siblingIndex: number;
 }
 
 // Small icon shown to the left of node text
@@ -25,7 +26,8 @@ function NodeIcon({ isRoot }: { isRoot: boolean }) {
   );
 }
 
-function Node({ node, hasChildren }: Props) {
+function Node({ node, hasChildren, siblingIndex }: Props) {
+  // ... stores and hooks ...
   const selectedNodeIds = useEditorStore((s) => s.selectedNodeIds);
   const selectNode = useEditorStore((s) => s.selectNode);
   const createNode = useEditorStore((s) => s.createNode);
@@ -35,6 +37,7 @@ function Node({ node, hasChildren }: Props) {
   const updateNodeText = useEditorStore((s) => s.updateNodeText);
   const cancelEditing = useEditorStore((s) => s.cancelEditing);
   const toggleNodeCollapse = useEditorStore((s) => s.toggleNodeCollapse);
+  const deletingNodeIds = useEditorStore((s) => s.deletingNodeIds);
 
   // Drag engine from context — no Zustand subscription needed
   const dragEngine = useDragContext();
@@ -48,19 +51,37 @@ function Node({ node, hasChildren }: Props) {
   const isRoot = !node.parentId;
   const isSelected = selectedNodeIds.has(node._id);
   const isEditing = editingNodeId === node._id;
+  const isDeleting = deletingNodeIds.has(node._id);
   const [editText, setEditText] = useState(node.text);
   const [isHovered, setIsHovered] = useState(false);
 
   // Pop animation on mount
   const [scale, setScale] = useState(0.5);
   const [opacity, setOpacity] = useState(0);
+
+  // Use siblingIndex for staggered entrance
+  const staggerDelay = isRoot ? 0 : (siblingIndex * 40); // 40ms stagger
+
   useEffect(() => {
+    if (isDeleting) {
+      setScale(0);
+      setOpacity(0);
+      return;
+    }
+
     const raf = requestAnimationFrame(() => {
-      setScale(1);
-      setOpacity(1);
+      // Small timeout to allow the transition-delay to be applied by the browser 
+      // before the state change triggers the transition
+      const timer = setTimeout(() => {
+        setScale(1);
+        setOpacity(1);
+      }, staggerDelay);
+      return () => clearTimeout(timer);
     });
     return () => cancelAnimationFrame(raf);
-  }, []);
+  }, [staggerDelay]);
+
+  // ... handleSave etc ...
 
   const handleSave = () => {
     if (editText.trim()) {
@@ -99,6 +120,7 @@ function Node({ node, hasChildren }: Props) {
       id={`node-group-${node._id}`}
       ref={groupRef}
       transform={`translate(${node.x}, ${node.y})`}
+      className="node-group"
     >
       {/* Collapse/Expand Toggle (only if children exist) */}
       {hasChildren && (
@@ -121,9 +143,6 @@ function Node({ node, hasChildren }: Props) {
           ) : (
             // Minus icon or chevron
             <g stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round">
-              {/* Use a simple dot or chevron? Let's use a minus for expand */}
-              {/* actually, conventionally: - means expanded (can collapse), + means collapsed (can expand) */}
-              {/* The mock UI used a chevron. Let's stick to standard tree view: - / + */}
               <line x1="-3" y1="0" x2="3" y2="0" />
             </g>
           )}
@@ -137,6 +156,7 @@ function Node({ node, hasChildren }: Props) {
           transform: `translate(${cx}px, ${cy}px) scale(${scale}) translate(${-cx}px, ${-cy}px)`,
           transition:
             "opacity 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)",
+          transitionDelay: `${staggerDelay}ms`,
         }}
         onMouseDown={(e) => {
           // In pan mode, let the event bubble to the canvas to handle panning.
@@ -145,6 +165,13 @@ function Node({ node, hasChildren }: Props) {
           clickStartRef.current = { x: e.clientX, y: e.clientY };
           if (!isEditing && groupRef.current) {
             e.stopPropagation();
+
+            // Select node immediately on mouse down (if not already part of an active multiselect)
+            // This ensures the drag engine sees the node as selected.
+            if (!isSelected || e.shiftKey) {
+              selectNode(node._id, e.shiftKey);
+            }
+
             // Hand off to the drag engine — no Zustand write
             dragEngine.onNodeMouseDown(node._id, node.x, node.y, groupRef.current, e);
           }
@@ -152,9 +179,47 @@ function Node({ node, hasChildren }: Props) {
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
+        <style>{`
+          @keyframes breathing-glow {
+            0% { opacity: 0.12; filter: blur(4px); stroke-width: 6; }
+            50% { opacity: 0.25; filter: blur(7px); stroke-width: 10; }
+            100% { opacity: 0.12; filter: blur(4px); stroke-width: 6; }
+          }
+          .selection-halo {
+            animation: breathing-glow 2.5s ease-in-out infinite;
+          }
+          @keyframes particle-puff {
+            0% { transform: translate(0, 0) scale(1); opacity: 1; }
+            100% { transform: translate(var(--dx), var(--dy)) scale(0); opacity: 0; }
+          }
+          .particle {
+            animation: particle-puff 0.35s ease-out forwards;
+          }
+        `}</style>
+
+        {/* Puff Deletion Particles */}
+        {isDeleting && (
+          <g transform={`translate(${cx}, ${cy})`}>
+            {[...Array(6)].map((_, i) => (
+              <circle
+                key={i}
+                r="4"
+                fill="#94a3b8"
+                className="particle"
+                style={{
+                  // @ts-ignore
+                  "--dx": `${(Math.random() - 0.5) * 60}px`,
+                  "--dy": `${(Math.random() - 0.5) * 60}px`,
+                }}
+              />
+            ))}
+          </g>
+        )}
+
         {/* Glow halo when selected */}
         {isSelected && (
           <rect
+            className="selection-halo"
             width={NODE_W}
             height={NODE_H}
             rx="10"
@@ -162,7 +227,7 @@ function Node({ node, hasChildren }: Props) {
             stroke="#60a5fa"
             strokeWidth="8"
             opacity="0.18"
-            style={{ filter: "blur(5px)" }}
+            style={{ filter: "blur(5px)", pointerEvents: 'none' }}
           />
         )}
 
@@ -180,13 +245,14 @@ function Node({ node, hasChildren }: Props) {
 
         {/* Main rect */}
         <rect
+          id={`node-rect-${node._id}`}
+          className="node-rect"
           width={NODE_W}
           height={NODE_H}
           rx="10"
           fill={fillColor}
           stroke={strokeColor}
           strokeWidth={strokeWidth}
-          style={{ transition: "stroke 0.2s, fill 0.2s" }}
           onClick={(e) => {
             if (isPanMode) return;
             e.stopPropagation();
@@ -195,7 +261,7 @@ function Node({ node, hasChildren }: Props) {
               const dy = e.clientY - clickStartRef.current.y;
               if (Math.sqrt(dx * dx + dy * dy) > 10) return;
             }
-            if (!isEditing) selectNode(node._id, e.shiftKey);
+            // selectNode moved to onMouseDown for better drag engine support
           }}
           onDoubleClick={(e) => {
             if (isPanMode) return;

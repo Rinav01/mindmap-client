@@ -21,7 +21,11 @@ export default function Canvas() {
 
     const svgRef = useRef<SVGSVGElement>(null);
     const [spacePressed, setSpacePressed] = useState(false);
+    const currentZoomRef = useRef(zoom);
+    const currentPanRef = useRef(panOffset);
+    const velocityRef = useRef({ x: 0, y: 0 });
     const lastMousePosRef = useRef({ x: 0, y: 0 });
+    const isInteractingRef = useRef(false);
 
     // Lasso State
     const [isLassoActive, setIsLassoActive] = useState(false);
@@ -31,16 +35,58 @@ export default function Canvas() {
     // Instantiate the high-performance drag engine
     const dragEngine = useDragEngine();
 
+    // SMOOTH PHYSICS LOOP
+    useEffect(() => {
+        let rafId: number;
+
+        const animate = () => {
+
+            const spring = 0.18;
+            const friction = 0.94;
+
+            // 1. Zoom Interpolation
+            currentZoomRef.current += (zoom - currentZoomRef.current) * spring;
+
+            // 2. Pan Interpolation & Inertia
+            if (isInteractingRef.current) {
+                // When manual panning, just follow the store (panning updates store)
+                currentPanRef.current.x += (panOffset.x - currentPanRef.current.x) * 0.4;
+                currentPanRef.current.y += (panOffset.y - currentPanRef.current.y) * 0.4;
+            } else {
+                // Apply inertia
+                currentPanRef.current.x += velocityRef.current.x;
+                currentPanRef.current.y += velocityRef.current.y;
+                velocityRef.current.x *= friction;
+                velocityRef.current.y *= friction;
+
+                // Sync store to inertia position?
+                // Actually, let's spring towards store, and only use velocity when store isn't being updated.
+                // Better: The store IS the target. If velocity is high, we update the store.
+                // For now, let's keep it simple: Spring towards store.
+                currentPanRef.current.x += (panOffset.x - currentPanRef.current.x) * spring;
+                currentPanRef.current.y += (panOffset.y - currentPanRef.current.y) * spring;
+            }
+
+            // 3. Direct DOM Update
+            const group = document.getElementById("canvas-world-group");
+            if (group) {
+                group.setAttribute(
+                    "transform",
+                    `translate(${800 + currentPanRef.current.x}, ${600 + currentPanRef.current.y}) scale(${currentZoomRef.current})`
+                );
+            }
+
+            rafId = requestAnimationFrame(animate);
+        };
+
+        rafId = requestAnimationFrame(animate);
+        return () => cancelAnimationFrame(rafId);
+    }, [zoom, panOffset]);
+
     // Keyboard listeners for space key
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.code === 'Space' && !spacePressed) {
-                // Don't prevent default here if you want to allow typing spaces in inputs!
-                // But since we are in Canvas, maybe we should check activeElement?
-                // For now, if we are editing a node, the input captures the event and stops propagation?
-                // The input in Node.tsx has onKeyDown checking for Enter/Escape but not stopping propagation for Space?
-                // Node.tsx input does NOT stop propagation for other keys.
-                // But Canvas keyboard listeners are on 'window'.
                 const activeTag = document.activeElement?.tagName.toLowerCase();
                 if (activeTag === 'input' || activeTag === 'textarea') return;
 
@@ -73,18 +119,15 @@ export default function Canvas() {
     }, [spacePressed, endPan]);
 
     const handleMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
-        // Prevent default browser drag behavior (e.g. dragging the SVG as an image)
-        // This is important to prevent "ghost" drags
-        if (e.button !== 0 && e.button !== 1) return; // Only allow left or middle click
-
-        // Actually, let's just prevent default always for background clicks
+        if (e.button !== 0 && e.button !== 1) return;
         e.preventDefault();
 
-        if (spacePressed || isPanMode || e.button === 1) { // Middle click always pans
+        if (spacePressed || isPanMode || e.button === 1) {
+            isInteractingRef.current = true;
+            velocityRef.current = { x: 0, y: 0 };
             startPan();
             lastMousePosRef.current = { x: e.clientX, y: e.clientY };
         } else {
-            // Start Lasso
             if (!dragEngine.isDragging()) {
                 const pt = getSVGPoint(e.clientX, e.clientY);
                 setLassoStart(pt);
@@ -95,7 +138,6 @@ export default function Canvas() {
     };
 
     const handleClick = (e: React.MouseEvent<SVGSVGElement>) => {
-        // Deselect when clicking canvas background (not panning or dragging)
         if (e.target === e.currentTarget && !isPanning && !dragEngine.isDragging() && !isLassoActive) {
             deselectAll();
         }
@@ -104,48 +146,39 @@ export default function Canvas() {
     const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
         if (isPanning && !isLassoActive) {
             e.preventDefault();
-            // Pan mode — still uses Zustand (pan is infrequent, not per-pixel-hot)
             const deltaX = e.clientX - lastMousePosRef.current.x;
             const deltaY = e.clientY - lastMousePosRef.current.y;
+
+            // Track velocity for inertia
+            velocityRef.current = { x: deltaX, y: deltaY };
+
             updatePan(deltaX, deltaY);
             lastMousePosRef.current = { x: e.clientX, y: e.clientY };
         } else if (isLassoActive) {
             const pt = getSVGPoint(e.clientX, e.clientY);
             setLassoEnd(pt);
         } else {
-            // Node drag mode — zero Zustand writes
             dragEngine.onMouseMove(e);
         }
     };
 
     const handleMouseUp = (e: React.MouseEvent<SVGSVGElement>) => {
+        isInteractingRef.current = false;
         if (isPanning) {
             endPan();
         } else if (isLassoActive) {
-            // Commit Lasso
             setIsLassoActive(false);
-
-            // Use fresh coordinates for the end point to ensure accuracy
             const finalEnd = getSVGPoint(e.clientX, e.clientY);
-
-            // Calculate intersection
-            // Normalizing rect
             const x = Math.min(lassoStart.x, finalEnd.x);
             const y = Math.min(lassoStart.y, finalEnd.y);
             const w = Math.abs(lassoStart.x - finalEnd.x);
             const h = Math.abs(lassoStart.y - finalEnd.y);
 
             if (w < 5 && h < 5) {
-                // Treat as click if very small movement
                 deselectAll();
                 return;
             }
 
-            // Simple AABB intersection
-            const NODE_W = 160;
-            const NODE_H = 44;
-
-            // Precompute visibility set (same logic as NodeLayer/EdgeLayer)
             const childrenMap = new Map<string | null, typeof nodes>();
             nodes.forEach(node => {
                 const pId = node.parentId;
@@ -166,28 +199,18 @@ export default function Canvas() {
 
             const selectedIds: string[] = [];
             nodes.forEach(node => {
-                // Ignore hidden nodes
                 if (!visibleNodeIds.has(node._id)) return;
-
-                // Node rect
-                const nx = node.x;
-                const ny = node.y;
-                const nw = NODE_W;
-                const nh = NODE_H;
-
-                // Check overlap
-                if (x < nx + nw && x + w > nx &&
-                    y < ny + nh && y + h > ny) {
+                if (x < node.x + 160 && x + w > node.x &&
+                    y < node.y + 44 && y + h > node.y) {
                     selectedIds.push(node._id);
                 }
             });
 
             if (selectedIds.length > 0) {
-                selectNodes(selectedIds, e.shiftKey); // Support Shift to add
+                selectNodes(selectedIds, e.shiftKey);
             } else if (!e.shiftKey) {
                 deselectAll();
             }
-
         } else {
             dragEngine.onMouseUp();
         }
@@ -199,11 +222,12 @@ export default function Canvas() {
 
         const onWheel = (e: WheelEvent) => {
             e.preventDefault();
-            const delta = e.deltaY > 0 ? -0.1 : 0.1;
-            setZoom(zoom + delta);
+            // Smoother wheel: just update target in store, RAF handles transition
+            const zoomSpeed = 0.0015;
+            const newZoom = zoom * (1 - e.deltaY * zoomSpeed);
+            setZoom(Math.max(0.1, Math.min(3, newZoom)));
         };
 
-        // React 18+ defaults wheel to passive, so we must add listener manually to preventDefault
         svgEl.addEventListener('wheel', onWheel, { passive: false });
         return () => svgEl.removeEventListener('wheel', onWheel);
     }, [zoom, setZoom]);
@@ -273,6 +297,24 @@ export default function Canvas() {
                             strokeDasharray="4 2"
                         />
                     )}
+
+                    {/* Snapping Guides */}
+                    <line
+                        id="snap-guide-v"
+                        x1="0" y1="-10000" x2="0" y2="10000"
+                        stroke="#a855f7"
+                        strokeWidth="1.5"
+                        strokeDasharray="4 4"
+                        style={{ display: "none", pointerEvents: "none" }}
+                    />
+                    <line
+                        id="snap-guide-h"
+                        x1="-10000" y1="0" x2="10000" y2="0"
+                        stroke="#a855f7"
+                        strokeWidth="1.5"
+                        strokeDasharray="4 4"
+                        style={{ display: "none", pointerEvents: "none" }}
+                    />
                 </g>
             </svg>
         </DragProvider>

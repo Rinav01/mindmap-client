@@ -36,28 +36,38 @@ export default function NodeLayer() {
   });
 
   // Recursive visibility filter
-  const visibleNodes: typeof nodes = [];
+  const visibleNodes: { node: typeof nodes[0], index: number }[] = [];
   const traverse = (parentId: string | null) => {
     const children = childrenMap.get(parentId);
     if (!children) return;
 
-    for (const child of children) {
-      visibleNodes.push(child);
-      // Only traverse deeper if NOT collapsed
+    children.forEach((child, index) => {
+      visibleNodes.push({ node: child, index });
       if (!child.collapsed) {
         traverse(child._id);
       }
-    }
+    });
   };
-  traverse(null); // Start with roots
+
+  // Find effective roots: parentId is null OR parent does not exist in current node set
+  const nodeIds = new Set(nodes.map(n => n._id));
+  const effectiveRoots = nodes.filter(n => !n.parentId || !nodeIds.has(n.parentId));
+
+  effectiveRoots.forEach((root, index) => {
+    visibleNodes.push({ node: root, index });
+    if (!root.collapsed) {
+      traverse(root._id);
+    }
+  });
 
   return (
     <>
-      {visibleNodes.map((node) => (
+      {visibleNodes.map(({ node, index }) => (
         <Node
           key={node._id}
           node={node}
           hasChildren={childrenMap.has(node._id)}
+          siblingIndex={index}
         />
       ))}
 

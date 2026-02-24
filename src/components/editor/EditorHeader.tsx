@@ -18,10 +18,13 @@ const iconBtn = (active = false, disabled = false) => ({
 
 interface Props {
     onAddNode?: () => void;
+    onToggleHistory?: () => void;
+    isHistoryOpen?: boolean;
 }
 
-export default function EditorHeader({ onAddNode }: Props) {
+export default function EditorHeader({ onAddNode, onToggleHistory, isHistoryOpen }: Props) {
     const { id } = useParams();
+    // ...
     const undo = useEditorStore((s) => s.undo);
     const redo = useEditorStore((s) => s.redo);
     const zoom = useEditorStore((s) => s.zoom);
@@ -210,6 +213,20 @@ export default function EditorHeader({ onAddNode }: Props) {
                 >
                     <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                         <polyline points="15 14 20 9 15 4" /><path d="M4 20v-7a4 4 0 0 1 4-4h12" />
+                    </svg>
+                </button>
+                {/* History/Snapshots */}
+                <button
+                    style={iconBtn(isHistoryOpen)}
+                    onClick={onToggleHistory}
+                    title="History & Snapshots"
+                    onMouseEnter={(e) => { if (!isHistoryOpen) { (e.currentTarget as HTMLButtonElement).style.background = "#1f2937"; (e.currentTarget as HTMLButtonElement).style.color = "white"; } }}
+                    onMouseLeave={(e) => { if (!isHistoryOpen) { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; } }}
+                >
+                    <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path d="M12 8v4l3 3" />
+                        <circle cx="12" cy="12" r="9" />
+                        <path d="M3.3 7a9 9 0 1 1 0 10" />
                     </svg>
                 </button>
             </div>

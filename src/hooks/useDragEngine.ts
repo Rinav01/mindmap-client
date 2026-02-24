@@ -15,6 +15,7 @@ interface DragState {
     // Final committed position (set on mouseup)
     finalX: number;
     finalY: number;
+    targetParentId: string | null; // For reparenting
 }
 
 export interface DragEngine {
@@ -73,7 +74,28 @@ export function useDragEngine(): DragEngine {
             e: React.MouseEvent
         ) => {
             e.stopPropagation();
-            const { zoom, panOffset } = getStore();
+            const { zoom, panOffset, selectedNodeIds, nodes } = getStore();
+
+            // Toggle dragging class to disable transitions during active movement
+            groupEl.classList.add("dragging");
+
+            const draggingIds = selectedNodeIds.has(nodeId) ? Array.from(selectedNodeIds) : [nodeId];
+
+            draggingIds.forEach(id => {
+                // Node transition
+                document.getElementById(`node-group-${id}`)?.classList.add("dragging");
+
+                // Edge transitions (incoming and outgoing)
+                // Incoming edge (to this node from its parent)
+                document.querySelector(`path.edge-path[id="edge-${id}"]`)?.classList.add("dragging");
+
+                // Outgoing edges (from this node to its children)
+                nodes.forEach(n => {
+                    if (n.parentId === id) {
+                        document.querySelector(`path.edge-path[id="edge-${n._id}"]`)?.classList.add("dragging");
+                    }
+                });
+            });
 
             dragRef.current = {
                 nodeId,
@@ -88,6 +110,7 @@ export function useDragEngine(): DragEngine {
                 rafId: null,
                 finalX: nodeX,
                 finalY: nodeY,
+                targetParentId: null,
             };
         },
         [getStore]
@@ -97,114 +120,334 @@ export function useDragEngine(): DragEngine {
         const drag = dragRef.current;
         if (!drag) return;
 
-        // Cancel any pending frame
         if (drag.rafId !== null) {
             cancelAnimationFrame(drag.rafId);
         }
 
-        // Capture values for the closure (avoid stale ref in rAF)
-        const clientX = e.clientX;
-        const clientY = e.clientY;
+        const mouseX = e.clientX;
+        const mouseY = e.clientY;
 
         drag.rafId = requestAnimationFrame(() => {
             const d = dragRef.current;
             if (!d) return;
 
-            const dx = (clientX - d.startMouseX) / d.zoom;
-            const dy = (clientY - d.startMouseY) / d.zoom;
+            const { nodes, selectedNodeIds } = getStore();
 
-            // Current node new pos
-            const newX = d.startNodeX + dx;
-            const newY = d.startNodeY + dy;
+            const NODE_W = 160;
+            const NODE_H = 44;
 
-            // Store for commit on mouseup (primary node)
-            d.finalX = newX;
-            d.finalY = newY;
+            const NODE_SNAP_THRESHOLD = 8;
+            const GRID_SNAP_THRESHOLD = 4;
+            const GRID_SIZE = 20;
 
-            // ── Direct DOM mutation: move the node group ──
-            d.nodeGroupEl.setAttribute("transform", `translate(${newX}, ${newY})`);
+            // ─────────────────────────────────────
+            // STEP 1: RAW POSITION
+            // ─────────────────────────────────────
+            const dx = (mouseX - d.startMouseX) / d.zoom;
+            const dy = (mouseY - d.startMouseY) / d.zoom;
 
-            // ── BATCH DRAG: Move other selected nodes ──
-            const { selectedNodeIds, nodes } = getStore();
-            // If dragging a selected node, move all others
-            // If dragging an unselected node (exclusive), selectedNodeIds should have been updated on MouseDown?
-            // Yes, Node.tsx handles selection on MouseDown/Click.
-            // But we need to know WHICH nodes are selected to move them.
+            const rawX = d.startNodeX + dx;
+            const rawY = d.startNodeY + dy;
 
-            // We probably need to cache selected nodes refs on Drag Start for performance?
-            // For now, let's just query selector them or use ID lookups if we have refs?
-            // We don't have refs to other nodes' groups in dragRef...
-            // "Hack": Use document.getElementById check? or simply rely on React rerender if we updated state?
-            // But we DON'T update state during drag.
-            // So we need to access DOM elements of other selected nodes.
-            // We don't have a map of nodeId -> groupRef.
+            // Selection bounding box
+            let sMinX = rawX;
+            let sMinY = rawY;
+            let sMaxX = rawX + NODE_W;
+            let sMaxY = rawY + NODE_H;
 
-            // Alternative: In Node.tsx, we can't easily register refs to a central store without re-renders.
-            // Option A: Query the DOM. valid IDs are unique.
-            // Option B: Just move the primary node for now, and handle batch later?
-            // User requested Batch Dragging.
-
-            // Let's use DOM query for other selected nodes.
-            // Each Node group could have an ID? 
-            // Currently Node.tsx does not set ID on <g>.
-            // Let's assume we can't batch drag visually yet without ID on groups.
-            // I will add ID to Node.tsx group: id={`node-group-${node._id}`} in next step?
-            // For now, let's implementation standard single node drag, and I'll add the specific batch logic in a follow up or if I can modify Node.tsx quickly.
-
-            // Actually, I can modify Node.tsx to add id to <g> easily.
-            // Let's assume I will do that.
-
-            if (selectedNodeIds.size > 1 && selectedNodeIds.has(d.nodeId)) {
-                selectedNodeIds.forEach(otherId => {
-                    if (otherId === d.nodeId) return;
-                    const otherGroup = document.getElementById(`node-group-${otherId}`);
-                    const otherNode = nodes.find(n => n._id === otherId);
-                    if (otherGroup && otherNode) {
-                        const otherNewX = otherNode.x + dx;
-                        const otherNewY = otherNode.y + dy;
-                        otherGroup.setAttribute("transform", `translate(${otherNewX}, ${otherNewY})`);
-
-                        // Update edges for other nodes?
-                        // This is getting expensive to calculate for all edges of all nodes in a RAF.
-                        // Optimization: maybe only update nodes, update edges on drop?
-                        // Or just update connected edges of these nodes.
-                        updateEdgesForNode(otherId, otherNewX, otherNewY, nodes, edgePathRefs.current);
+            if (selectedNodeIds.has(d.nodeId)) {
+                selectedNodeIds.forEach(id => {
+                    const node = nodes.find(n => n._id === id);
+                    if (node && id !== d.nodeId) {
+                        const nx = node.x + dx;
+                        const ny = node.y + dy;
+                        sMinX = Math.min(sMinX, nx);
+                        sMinY = Math.min(sMinY, ny);
+                        sMaxX = Math.max(sMaxX, nx + NODE_W);
+                        sMaxY = Math.max(sMaxY, ny + NODE_H);
                     }
                 });
             }
 
-            // ── Direct DOM mutation: update connected edges (Primary Node) ──
-            updateEdgesForNode(d.nodeId, newX, newY, getStore().nodes, edgePathRefs.current);
+            const sCenterX = (sMinX + sMaxX) / 2;
+            const sCenterY = (sMinY + sMaxY) / 2;
+
+            // ─────────────────────────────────────
+            // STEP 2: CLOSEST NODE SNAP
+            // ─────────────────────────────────────
+            let bestSnapX: number | null = null;
+            let bestSnapY: number | null = null;
+            let bestGuideX: number | null = null;
+            let bestGuideY: number | null = null;
+
+            let bestXDist = Infinity;
+            let bestYDist = Infinity;
+
+            const snapTargets = nodes.filter(
+                n => n._id !== d.nodeId && !selectedNodeIds.has(n._id)
+            );
+
+            // ── STEP 2.5: Hierarchy Snappping (Priority) ──
+            let hierarchicalX = false;
+            let hierarchicalY = false;
+
+            const draggingNode = nodes.find(n => n._id === d.nodeId);
+            if (draggingNode) {
+                // Parent alignment (Horizontal flow: same y)
+                if (draggingNode.parentId) {
+                    const parent = nodes.find(n => n._id === draggingNode.parentId);
+                    if (parent) {
+                        const py = parent.y;
+                        if (Math.abs(rawY - py) < NODE_SNAP_THRESHOLD) {
+                            bestSnapY = py;
+                            bestGuideY = py;
+                            bestYDist = Math.abs(rawY - py);
+                            hierarchicalY = true;
+                        }
+                    }
+                }
+
+                // Sibling alignment
+                if (draggingNode.parentId) {
+                    const siblings = nodes.filter(n => n.parentId === draggingNode.parentId && n._id !== draggingNode._id && !selectedNodeIds.has(n._id));
+                    for (const sib of siblings) {
+                        // Vertical same-column alignment
+                        if (Math.abs(rawX - sib.x) < NODE_SNAP_THRESHOLD) {
+                            bestSnapX = sib.x;
+                            bestGuideX = sib.x;
+                            bestXDist = Math.abs(rawX - sib.x);
+                            hierarchicalX = true;
+                        }
+                    }
+                }
+            }
+
+            for (const target of snapTargets) {
+                // Don't override hierarchical snap if it's already very close
+                if (hierarchicalX && bestXDist < 2) continue;
+
+                const tx = target.x;
+                const ty = target.y;
+                const tMaxX = tx + NODE_W;
+                const tMaxY = ty + NODE_H;
+                const tCenterX = tx + NODE_W / 2;
+                const tCenterY = ty + NODE_H / 2;
+
+                const xCandidates = [
+                    [sMinX, tx],
+                    [sMaxX, tMaxX],
+                    [sCenterX, tCenterX],
+                    [sMinX, tMaxX],
+                    [sMaxX, tx]
+                ];
+
+                for (const [dragVal, targetVal] of xCandidates) {
+                    const dist = Math.abs(dragVal - targetVal);
+                    if (dist < NODE_SNAP_THRESHOLD && dist < bestXDist) {
+                        bestXDist = dist;
+                        bestSnapX = rawX + (targetVal - dragVal);
+                        bestGuideX = targetVal;
+                    }
+                }
+
+                const yCandidates = [
+                    [sMinY, ty],
+                    [sMaxY, tMaxY],
+                    [sCenterY, tCenterY],
+                    [sMinY, tMaxY],
+                    [sMaxY, ty]
+                ];
+
+                for (const [dragVal, targetVal] of yCandidates) {
+                    const dist = Math.abs(dragVal - targetVal);
+                    if (dist < NODE_SNAP_THRESHOLD && dist < bestYDist) {
+                        bestYDist = dist;
+                        bestSnapY = rawY + (targetVal - dragVal);
+                        bestGuideY = targetVal;
+                    }
+                }
+            }
+
+            // ─────────────────────────────────────
+            // STEP 3: GRID FALLBACK
+            // ─────────────────────────────────────
+            let finalX = rawX;
+            let finalY = rawY;
+
+            if (bestSnapX !== null) {
+                finalX = bestSnapX;
+            } else {
+                const gridX = Math.round(rawX / GRID_SIZE) * GRID_SIZE;
+                if (Math.abs(rawX - gridX) < GRID_SNAP_THRESHOLD) {
+                    finalX = gridX;
+                }
+            }
+
+            if (bestSnapY !== null) {
+                finalY = bestSnapY;
+            } else {
+                const gridY = Math.round(rawY / GRID_SIZE) * GRID_SIZE;
+                if (Math.abs(rawY - gridY) < GRID_SNAP_THRESHOLD) {
+                    finalY = gridY;
+                }
+            }
+
+            const snappedDx = finalX - d.startNodeX;
+            const snappedDy = finalY - d.startNodeY;
+
+            d.finalX = finalX;
+            d.finalY = finalY;
+
+            // ─────────────────────────────────────
+            // STEP 4: APPLY TRANSFORM
+            // ─────────────────────────────────────
+            const currentPositions = new Map<string, { x: number; y: number }>();
+            currentPositions.set(d.nodeId, { x: finalX, y: finalY });
+
+            d.nodeGroupEl.setAttribute(
+                "transform",
+                `translate(${finalX}, ${finalY})`
+            );
+
+            if (selectedNodeIds.size > 1 && selectedNodeIds.has(d.nodeId)) {
+                selectedNodeIds.forEach(id => {
+                    if (id === d.nodeId) return;
+                    const group = document.getElementById(`node-group-${id}`);
+                    const node = nodes.find(n => n._id === id);
+                    if (group && node) {
+                        const nx = node.x + snappedDx;
+                        const ny = node.y + snappedDy;
+                        group.setAttribute(
+                            "transform",
+                            `translate(${nx}, ${ny})`
+                        );
+                        currentPositions.set(id, { x: nx, y: ny });
+                    }
+                });
+            }
+
+            currentPositions.forEach((pos, id) => {
+                updateEdgesForNode(
+                    id,
+                    pos.x,
+                    pos.y,
+                    nodes,
+                    edgePathRefs.current,
+                    currentPositions
+                );
+            });
+
+            // ─────────────────────────────────────
+            // STEP 5: GUIDES
+            // ─────────────────────────────────────
+            const vGuide = document.getElementById("snap-guide-v");
+            const hGuide = document.getElementById("snap-guide-h");
+
+            if (vGuide) {
+                if (bestGuideX !== null) {
+                    vGuide.setAttribute("x1", bestGuideX.toString());
+                    vGuide.setAttribute("x2", bestGuideX.toString());
+                    vGuide.style.display = "block";
+                    vGuide.style.stroke = hierarchicalX ? "#22c55e" : "#a855f7";
+                } else {
+                    vGuide.style.display = "none";
+                }
+            }
+
+            if (hGuide) {
+                if (bestGuideY !== null) {
+                    hGuide.setAttribute("y1", bestGuideY.toString());
+                    hGuide.setAttribute("y2", bestGuideY.toString());
+                    hGuide.style.display = "block";
+                    hGuide.style.stroke = hierarchicalY ? "#22c55e" : "#a855f7";
+                } else {
+                    hGuide.style.display = "none";
+                }
+            }
+
+            // ── STEP 6: Reparenting Detection (Overlap) ──
+            const OVERLAP_THRESHOLD = 30;
+            let newTargetParentId: string | null = null;
+
+            // Find nodes NOT being dragged and NOT descendants of anything being dragged
+            const beingDraggedIds = new Set(selectedNodeIds);
+            beingDraggedIds.add(d.nodeId);
+
+            // Helper: get all descendants
+            const getDescendants = (parentId: string): Set<string> => {
+                const desc = new Set<string>();
+                const find = (pid: string) => {
+                    nodes.forEach(n => {
+                        if (n.parentId === pid) {
+                            desc.add(n._id);
+                            find(n._id);
+                        }
+                    });
+                };
+                find(parentId);
+                return desc;
+            };
+
+            const forbiddenNodes = new Set<string>(beingDraggedIds);
+            beingDraggedIds.forEach(id => {
+                getDescendants(id).forEach(dId => forbiddenNodes.add(dId));
+            });
+
+            const potentialParents = nodes.filter(n => !forbiddenNodes.has(n._id));
+
+            for (const target of potentialParents) {
+                const tx = target.x;
+                const ty = target.y;
+                // Intersection check
+                if (finalX < tx + NODE_W - OVERLAP_THRESHOLD &&
+                    finalX + NODE_W > tx + OVERLAP_THRESHOLD &&
+                    finalY < ty + NODE_H - OVERLAP_THRESHOLD &&
+                    finalY + NODE_H > ty + OVERLAP_THRESHOLD) {
+                    newTargetParentId = target._id;
+                    break;
+                }
+            }
+
+            // Apply visual feedback (DOM)
+            if (d.targetParentId !== newTargetParentId) {
+                if (d.targetParentId) {
+                    const prev = document.getElementById(`node-rect-${d.targetParentId}`);
+                    if (prev) prev.classList.remove("drop-target");
+                }
+                if (newTargetParentId) {
+                    const curr = document.getElementById(`node-rect-${newTargetParentId}`);
+                    if (curr) curr.classList.add("drop-target");
+                }
+                d.targetParentId = newTargetParentId;
+            }
 
             drag.rafId = null;
         });
     }, [getStore]);
 
     // Helper to update edges
-    function updateEdgesForNode(nodeId: string, newX: number, newY: number, nodes: any[], edgeRefs: Map<string, SVGPathElement>) {
+    function updateEdgesForNode(
+        nodeId: string,
+        newX: number,
+        newY: number,
+        nodes: any[],
+        edgeRefs: Map<string, SVGPathElement>,
+        currentPositions?: Map<string, { x: number; y: number }>
+    ) {
         const node = nodes.find((n) => n._id === nodeId);
         if (!node) return;
 
         const NODE_W = 160;
         const NODE_H_HALF = 22;
 
-        // Edge FROM parent TO this node
         const parentEdgePath = edgeRefs.get(nodeId);
         if (parentEdgePath) {
             const parent = nodes.find((n) => n._id === node.parentId);
             if (parent) {
-                // If parent is ALSO being dragged, we need its NEW position.
-                // But 'nodes' state is stale (old pos).
-                // If parent is selected, it's moving too. 
-                // Ideally we need the delta. 
-                // Complex... determining startX/Y based on if parent is moving.
-                // For now simple implementation: use stored parent X/Y. 
-                // If parent moves, the edge might look detached from parent until drop?
-                // Or we check if parent is in selectedNodeIds?
-                // Let's keep it simple for now.
-
-                const startX = parent.x + NODE_W;
-                const startY = parent.y + NODE_H_HALF;
+                // Use temporary position if parent is also being dragged
+                const pPos = currentPositions?.get(parent._id) || { x: parent.x, y: parent.y };
+                const startX = pPos.x + NODE_W;
+                const startY = pPos.y + NODE_H_HALF;
                 const endX = newX;
                 const endY = newY + NODE_H_HALF;
                 const controlX = (startX + endX) / 2;
@@ -215,16 +458,16 @@ export function useDragEngine(): DragEngine {
             }
         }
 
-        // Edges FROM this node TO children
         const children = nodes.filter((n) => n.parentId === nodeId);
         for (const child of children) {
             const childEdgePath = edgeRefs.get(child._id);
             if (childEdgePath) {
-                // If child is moving?
+                // Use temporary position if child is also being dragged
+                const cPos = currentPositions?.get(child._id) || { x: child.x, y: child.y };
                 const startX = newX + NODE_W;
                 const startY = newY + NODE_H_HALF;
-                const endX = child.x;
-                const endY = child.y + NODE_H_HALF;
+                const endX = cPos.x;
+                const endY = cPos.y + NODE_H_HALF;
                 const controlX = (startX + endX) / 2;
                 childEdgePath.setAttribute(
                     "d",
@@ -238,7 +481,12 @@ export function useDragEngine(): DragEngine {
         const drag = dragRef.current;
         if (!drag) return;
 
-        // Cancel any pending frame
+        // Clear snap guides
+        const vGuide = document.getElementById("snap-guide-v");
+        const hGuide = document.getElementById("snap-guide-h");
+        if (vGuide) vGuide.style.display = "none";
+        if (hGuide) hGuide.style.display = "none";
+
         if (drag.rafId !== null) {
             cancelAnimationFrame(drag.rafId);
             drag.rafId = null;
@@ -247,15 +495,36 @@ export function useDragEngine(): DragEngine {
         const { finalX, finalY, nodeId, startNodeX, startNodeY } = drag;
         dragRef.current = null;
 
-        const { commitDragEnd, commitBatchDragEnd, selectedNodeIds, nodes } = useEditorStore.getState();
-
         // Calculate delta
         const dx = finalX - startNodeX;
         const dy = finalY - startNodeY;
 
-        if (dx === 0 && dy === 0) return; // No move
+        // Clear feedback and dragging classes
+        const { selectedNodeIds } = useEditorStore.getState();
 
-        if (selectedNodeIds.size > 1 && selectedNodeIds.has(nodeId)) {
+        selectedNodeIds.forEach(id => {
+            document.getElementById(`node-group-${id}`)?.classList.remove("dragging");
+        });
+        drag.nodeGroupEl.classList.remove("dragging");
+
+        // Clear all edge dragging classes
+        document.querySelectorAll("path.edge-path.dragging").forEach(el => {
+            el.classList.remove("dragging");
+        });
+
+        if (drag.targetParentId) {
+            const el = document.getElementById(`node-rect-${drag.targetParentId}`);
+            if (el) el.classList.remove("drop-target");
+        }
+
+        if (dx === 0 && dy === 0 && !drag.targetParentId) return;
+
+        const { commitDragEnd, commitBatchDragEnd, reparentNodes, nodes } = useEditorStore.getState();
+
+        if (drag.targetParentId) {
+            const nodesToReparent = selectedNodeIds.has(nodeId) ? Array.from(selectedNodeIds) : [nodeId];
+            reparentNodes(nodesToReparent, drag.targetParentId);
+        } else if (selectedNodeIds.size > 1 && selectedNodeIds.has(nodeId)) {
             // Batch commit
             const updates: { id: string; x: number; y: number }[] = [];
             selectedNodeIds.forEach(id => {

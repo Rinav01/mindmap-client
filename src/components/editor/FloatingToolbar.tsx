@@ -12,6 +12,8 @@ export default function FloatingToolbar({ onDelete }: Props) {
     const createNode = useEditorStore((s) => s.createNode);
     const deleteSelectedNodes = useEditorStore((s) => s.deleteSelectedNodes);
     const startEditing = useEditorStore((s) => s.startEditing);
+    const alignSelectedNodes = useEditorStore((s) => s.alignSelectedNodes);
+    const distributeSelectedNodes = useEditorStore((s) => s.distributeSelectedNodes);
 
     // For toolbar, if multiple selected, dragging is main action.
     // If single selected, show standard toolbar.
@@ -101,6 +103,52 @@ export default function FloatingToolbar({ onDelete }: Props) {
         },
     ];
 
+    const alignTools = [
+        {
+            title: "Align Left",
+            icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="3" y1="3" x2="3" y2="21" /><rect x="7" y="5" width="14" height="4" rx="1" /><rect x="7" y="15" width="10" height="4" rx="1" /></svg>,
+            onClick: () => alignSelectedNodes("left"),
+        },
+        {
+            title: "Align Center",
+            icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="12" y1="3" x2="12" y2="21" /><rect x="5" y="5" width="14" height="4" rx="1" /><rect x="7" y="15" width="10" height="4" rx="1" /></svg>,
+            onClick: () => alignSelectedNodes("center"),
+        },
+        {
+            title: "Align Right",
+            icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="21" y1="3" x2="21" y2="21" /><rect x="3" y="5" width="14" height="4" rx="1" /><rect x="11" y="15" width="10" height="4" rx="1" /></svg>,
+            onClick: () => alignSelectedNodes("right"),
+        },
+        {
+            title: "Align Top",
+            icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="3" y1="3" x2="21" y2="3" /><rect x="5" y="7" width="4" height="14" rx="1" /><rect x="15" y="7" width="4" height="10" rx="1" /></svg>,
+            onClick: () => alignSelectedNodes("top"),
+        },
+        {
+            title: "Align Middle",
+            icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12" /><rect x="5" y="5" width="4" height="14" rx="1" /><rect x="15" y="7" width="4" height="10" rx="1" /></svg>,
+            onClick: () => alignSelectedNodes("middle"),
+        },
+        {
+            title: "Align Bottom",
+            icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="3" y1="21" x2="21" y2="21" /><rect x="5" y="3" width="4" height="14" rx="1" /><rect x="15" y="11" width="4" height="10" rx="1" /></svg>,
+            onClick: () => alignSelectedNodes("bottom"),
+        },
+    ];
+
+    const distributeTools = [
+        {
+            title: "Distribute Horizontal",
+            icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="2" y="5" width="4" height="14" rx="1" /><rect x="18" y="5" width="4" height="14" rx="1" /><line x1="12" y1="5" x2="12" y2="19" /></svg>,
+            onClick: () => distributeSelectedNodes("horizontal"),
+        },
+        {
+            title: "Distribute Vertical",
+            icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="4" rx="1" /><rect x="5" y="18" width="14" height="4" rx="1" /><line x1="5" y1="12" x2="19" y2="12" /></svg>,
+            onClick: () => distributeSelectedNodes("vertical"),
+        },
+    ];
+
     return (
         <div style={{
             position: "fixed", bottom: "28px", left: "50%", transform: "translateX(-50%)",
@@ -141,6 +189,66 @@ export default function FloatingToolbar({ onDelete }: Props) {
                     {item.icon}
                 </button>
             ))}
+
+            {selectedNodeIds.size > 1 && (
+                <>
+                    <div style={{ width: "1px", height: "20px", background: "#334155", margin: "0 6px" }} />
+                    {alignTools.map((item, i) => (
+                        <button
+                            key={"align-" + i}
+                            title={item.title}
+                            onClick={item.onClick}
+                            style={{
+                                background: "transparent", border: "none",
+                                cursor: "pointer", color: "#9ca3af",
+                                padding: "8px", borderRadius: "9px",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                transition: "background 0.15s, color 0.15s",
+                            }}
+                            onMouseEnter={(e) => {
+                                (e.currentTarget as HTMLButtonElement).style.background = "#334155";
+                                (e.currentTarget as HTMLButtonElement).style.color = "white";
+                            }}
+                            onMouseLeave={(e) => {
+                                (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                                (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af";
+                            }}
+                        >
+                            {item.icon}
+                        </button>
+                    ))}
+                </>
+            )}
+
+            {selectedNodeIds.size > 2 && (
+                <>
+                    <div style={{ width: "1px", height: "20px", background: "#334155", margin: "0 6px" }} />
+                    {distributeTools.map((item, i) => (
+                        <button
+                            key={"dist-" + i}
+                            title={item.title}
+                            onClick={item.onClick}
+                            style={{
+                                background: "transparent", border: "none",
+                                cursor: "pointer", color: "#9ca3af",
+                                padding: "8px", borderRadius: "9px",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                transition: "background 0.15s, color 0.15s",
+                            }}
+                            onMouseEnter={(e) => {
+                                (e.currentTarget as HTMLButtonElement).style.background = "#334155";
+                                (e.currentTarget as HTMLButtonElement).style.color = "white";
+                            }}
+                            onMouseLeave={(e) => {
+                                (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                                (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af";
+                            }}
+                        >
+                            {item.icon}
+                        </button>
+                    ))}
+                </>
+            )}
         </div>
     );
 }

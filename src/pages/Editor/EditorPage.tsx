@@ -9,6 +9,7 @@ import { useEditorStore } from "../../store/editorStore";
 import NodePropertiesPanel from "../../components/editor/NodePropertiesPanel";
 import Toast from "../../components/ui/Toast";
 import KeyboardShortcuts from "../../components/editor/KeyboardShortcuts";
+import VersionPanel from "../../components/editor/VersionPanel";
 
 interface ToastState {
   message: string;
@@ -29,6 +30,7 @@ export default function EditorPage() {
   const editingNodeId = useEditorStore((s) => s.editingNodeId);
   const deleteSelectedNodes = useEditorStore((s) => s.deleteSelectedNodes);
 
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
   const dismissToast = useCallback(() => setToast(null), []);
 
@@ -124,7 +126,11 @@ export default function EditorPage() {
     <div style={{ height: "100vh", background: "#0f172a", overflow: "hidden", position: "relative", fontFamily: "Inter, sans-serif" }}>
 
       {/* Header */}
-      <EditorHeader onAddNode={handleAddNode} />
+      <EditorHeader
+        onAddNode={handleAddNode}
+        onToggleHistory={() => setIsHistoryOpen(!isHistoryOpen)}
+        isHistoryOpen={isHistoryOpen}
+      />
 
       {/* Canvas Area — offset by 52px header */}
       <div style={{ paddingTop: "52px", height: "100%" }}>
@@ -157,6 +163,11 @@ export default function EditorPage() {
 
       {/* Properties Panel */}
       <NodePropertiesPanel />
+
+      {/* Version Panel */}
+      {isHistoryOpen && (
+        <VersionPanel onClose={() => setIsHistoryOpen(false)} />
+      )}
 
       {/* Toast notification */}
       {toast && (

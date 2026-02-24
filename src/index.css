@@ -50,3 +50,31 @@
   animation: node-pop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
   transform-origin: center;
 }
+
+/* --- Smoothing Animations --- */
+
+.node-group {
+  transition: transform 0.3s cubic-bezier(0.2, 1, 0.3, 1);
+}
+
+.node-group.dragging {
+  transition: none !important;
+}
+
+.node-rect {
+  transition: stroke 0.2s ease, stroke-width 0.2s ease, filter 0.2s ease, fill 0.2s ease;
+}
+
+.drop-target {
+  stroke: #3b82f6 !important;
+  stroke-width: 2.5 !important;
+  filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.6)) !important;
+}
+
+.edge-path {
+  transition: d 0.3s cubic-bezier(0.2, 1, 0.3, 1), stroke 0.2s ease, stroke-width 0.2s ease;
+}
+
+.edge-path.dragging {
+  transition: none !important;
+}

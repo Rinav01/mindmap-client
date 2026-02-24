@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { api } from "../services/api";
+import { performAnimatedLayoutChange } from "../engine/motionEngine";
 
 export interface NodeType {
     _id: string;
@@ -12,6 +13,12 @@ export interface NodeType {
     collapsed?: boolean;
 }
 
+export interface MindMapVersion {
+    _id: string;
+    name: string;
+    createdAt: string;
+}
+
 interface EditorState {
     nodes: NodeType[];
     selectedNodeIds: Set<string>;
@@ -22,59 +29,47 @@ interface EditorState {
     editingNodeId: string | null;
     history: NodeType[][];
     historyIndex: number;
+    deletingNodeIds: Set<string>;
     color?: string;
     fontSize?: number;
     mapTitle: string;
+    isLayoutAnimating: boolean;
 
     loadNodes: (mindMapId: string) => Promise<void>;
     setMapTitle: (mindMapId: string, title: string) => Promise<void>;
-
-    /** 
-     * Select a node. 
-     * @param id The node ID.
-     * @param multi If true (Shift key), toggle selection. If false, exclusive select.
-     */
     selectNode: (id: string, multi?: boolean) => void;
-
-    /** Select multiple nodes (e.g. Lasso) */
     selectNodes: (ids: string[], multi?: boolean) => void;
-
     deselectAll: () => void;
-
-    createNode: (
-        mindMapId: string,
-        parent: NodeType
-    ) => Promise<void>;
-
-    /** Called by the drag engine on mouseup with the final position. */
+    createNode: (mindMapId: string, parent: NodeType) => Promise<void>;
     commitDragEnd: (id: string, x: number, y: number) => Promise<void>;
     commitBatchDragEnd: (updates: { id: string; x: number; y: number }[]) => Promise<void>;
     setZoom: (zoom: number) => void;
-
     startPan: () => void;
     updatePan: (deltaX: number, deltaY: number) => void;
     endPan: () => void;
     togglePanMode: () => void;
     setIsPanMode: (active: boolean) => void;
-
     startEditing: (id: string) => void;
     updateNodeText: (id: string, text: string) => Promise<void>;
     updateNodeColor: (id: string, color: string) => Promise<void>;
     updateNodeFontSize: (id: string, fontSize: number) => Promise<void>;
     cancelEditing: () => void;
     toggleNodeCollapse: (id: string) => void;
-
     deleteSelectedNodes: () => Promise<void>;
-    // Legacy single delete for compatibility refactor if needed (prefer deleteSelectedNodes)
     deleteNode: (id: string) => Promise<void>;
-
     autoLayout: () => Promise<void>;
-
     fitToScreen: () => void;
-
     pushHistory: () => void;
     undo: () => Promise<void>;
     redo: () => Promise<void>;
+    alignSelectedNodes: (type: "left" | "center" | "right" | "top" | "middle" | "bottom") => Promise<void>;
+    distributeSelectedNodes: (axis: "horizontal" | "vertical") => Promise<void>;
+    reparentNodes: (nodeIds: string[], newParentId: string) => Promise<void>;
+    setLayoutAnimating: (busy: boolean) => void;
+    versions: MindMapVersion[];
+    loadVersions: (mindMapId: string) => Promise<void>;
+    createSnapshot: (mindMapId: string, name: string) => Promise<void>;
+    restoreVersion: (mindMapId: string, versionId: string) => Promise<void>;
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -86,15 +81,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     isPanMode: false,
     history: [],
     historyIndex: -1,
+    deletingNodeIds: new Set(),
     editingNodeId: null,
     mapTitle: "",
+    isLayoutAnimating: false,
+    versions: [],
 
     loadNodes: async (mindMapId) => {
         const [nodesRes, mapRes] = await Promise.all([
             api.get(`/mindmaps/${mindMapId}/nodes`),
             api.get(`/mindmaps/${mindMapId}`),
         ]);
-        set({ nodes: nodesRes.data, mapTitle: mapRes.data?.title ?? "" });
+
+        const rawNodes = nodesRes.data || [];
+        const normalizedNodes: NodeType[] = rawNodes.map(normalizeNode);
+
+        set({ nodes: normalizedNodes, mapTitle: mapRes.data?.title ?? "" });
     },
 
     setMapTitle: async (mindMapId, title) => {
@@ -136,16 +138,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             y: parent.y,
         });
 
-        const newNode = res.data;
+        const newNode = normalizeNode(res.data);
         set({
             nodes: [...get().nodes, newNode],
-            selectedNodeIds: new Set([newNode._id]) // Auto-select new node
+            selectedNodeIds: new Set([newNode._id])
         });
         get().pushHistory();
     },
 
     commitDragEnd: async (id, x, y) => {
-        // Single node commit (legacy or specific use)
         set({
             nodes: get().nodes.map((n) =>
                 n._id === id ? { ...n, x, y } : n
@@ -160,16 +161,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     },
 
     commitBatchDragEnd: async (updates) => {
-        // Optimistic update for all
         set({
             nodes: get().nodes.map((n) => {
                 const update = updates.find(u => u.id === n._id);
                 return update ? { ...n, x: update.x, y: update.y } : n;
             }),
         });
-
-        // Sync all to backend
-        // In a real app, might want a batch API endpoint. For now, loop requests (or use Promise.all)
         try {
             await Promise.all(updates.map(u => api.patch(`/mindmaps/nodes/${u.id}`, { x: u.x, y: u.y })));
             get().pushHistory();
@@ -179,7 +176,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     },
 
     updateNodeColor: async (id, color) => {
-        // Optimistic update
         set({
             nodes: get().nodes.map((n) =>
                 n._id === id ? { ...n, color } : n
@@ -193,7 +189,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     },
 
     updateNodeFontSize: async (id, fontSize) => {
-        // Optimistic update
         set({
             nodes: get().nodes.map((n) =>
                 n._id === id ? { ...n, fontSize } : n
@@ -206,9 +201,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         }
     },
 
-
     setZoom: (zoom) => {
-        // Clamp zoom between 0.1 and 3
         const clampedZoom = Math.max(0.1, Math.min(3, zoom));
         set({ zoom: clampedZoom });
     },
@@ -247,42 +240,46 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     cancelEditing: () => set({ editingNodeId: null }),
 
     deleteNode: async (id) => {
-        // Legacy wrapper: delete just this one
-        // In new model, we should prefer deleteSelectedNodes if id matches selection
+        set((state) => {
+            const newDeleting = new Set(state.deletingNodeIds);
+            newDeleting.add(id);
+            return { deletingNodeIds: newDeleting };
+        });
+        await new Promise((resolve) => setTimeout(resolve, 300));
         try {
             await api.delete(`/mindmaps/nodes/${id}`);
-            set({
-                nodes: get().nodes.filter((n) => n._id !== id && n.parentId !== id),
-                selectedNodeIds: new Set(),
+            set((state) => {
+                const newDeleting = new Set(state.deletingNodeIds);
+                newDeleting.delete(id);
+                return {
+                    nodes: state.nodes.filter((n) => n._id !== id && n.parentId !== id),
+                    selectedNodeIds: new Set(),
+                    deletingNodeIds: newDeleting
+                };
             });
             get().pushHistory();
         } catch (err) {
             console.error("Failed to delete node:", err);
+            set((state) => {
+                const newDeleting = new Set(state.deletingNodeIds);
+                newDeleting.delete(id);
+                return { deletingNodeIds: newDeleting };
+            });
         }
     },
 
     deleteSelectedNodes: async () => {
         const { selectedNodeIds, nodes } = get();
         if (selectedNodeIds.size === 0) return;
-
         const idsToDelete = Array.from(selectedNodeIds);
-
+        set((state) => {
+            const newDeleting = new Set(state.deletingNodeIds);
+            idsToDelete.forEach(id => newDeleting.add(id));
+            return { deletingNodeIds: newDeleting };
+        });
+        await new Promise((resolve) => setTimeout(resolve, 300));
         try {
-            // Ideally a batch delete API, else loop
             await Promise.all(idsToDelete.map(id => api.delete(`/mindmaps/nodes/${id}`)));
-
-            // Filter out deleted nodes AND their children
-            // Note: If we delete a parent, children are usually deleted by backend cascade or we must do it.
-            // Assuming simplified client-side filter for now:
-
-            // To be safe, let's fetch fresh? Or just filter carefully.
-            // If backend cascades, we just need to remove them from local state.
-            // Let's assume manual recursion in state update for now.
-
-            // Note: simple filter might leave orphans if backend doesn't cascade. 
-            // Better to re-fetch or trust backend cascade. 
-            // For now, removing exact IDs + children of those IDs from state.
-
             const toRemove = new Set(idsToDelete);
             let changed = true;
             while (changed) {
@@ -294,116 +291,128 @@ export const useEditorStore = create<EditorState>((set, get) => ({
                     }
                 });
             }
-
-            set({
-                nodes: nodes.filter(n => !toRemove.has(n._id)),
-                selectedNodeIds: new Set(),
+            set((state) => {
+                const newDeleting = new Set(state.deletingNodeIds);
+                idsToDelete.forEach(id => newDeleting.delete(id));
+                return {
+                    nodes: state.nodes.filter(n => !toRemove.has(n._id)),
+                    selectedNodeIds: new Set(),
+                    deletingNodeIds: newDeleting
+                };
             });
             get().pushHistory();
         } catch (err) {
             console.error("Failed to delete nodes:", err);
+            set((state) => {
+                const newDeleting = new Set(state.deletingNodeIds);
+                idsToDelete.forEach(id => newDeleting.delete(id));
+                return { deletingNodeIds: newDeleting };
+            });
         }
     },
 
     autoLayout: async () => {
         const { nodes } = get();
+        if (nodes.length === 0) return;
 
-        // Find root node (no parent)
-        const root = nodes.find(n => !n.parentId);
-        if (!root) return;
+        // Defensive normalization for IDs and Coordinates
+        const normalizedNodes: NodeType[] = nodes.map(normalizeNode);
 
-        // Calculate positions using tree layout
-        const positioned = calculateTreeLayout(nodes, root);
+        const nodeIds = new Set(normalizedNodes.map(n => n._id));
+        const roots = normalizedNodes.filter(n => !n.parentId || !nodeIds.has(n.parentId));
 
-        // Update all positions to backend
+        let allPositioned: NodeType[] = [];
+        let subtreeYOffset = 0;
+        const SUBTREE_GAP = 200;
+        const sortedRoots = [...roots].sort((a, b) => a.y - b.y);
+
+        for (const root of sortedRoots) {
+            const anchorY = allPositioned.length === 0 ? root.y : subtreeYOffset;
+            const positionedSubtree = calculateTreeLayout(normalizedNodes, root, root.x, anchorY);
+            allPositioned = [...allPositioned, ...positionedSubtree];
+            const maxY = Math.max(...positionedSubtree.map(n => n.y));
+            subtreeYOffset = maxY + SUBTREE_GAP;
+        }
+
+        const positionedIds = new Set(allPositioned.map(n => n._id));
+        normalizedNodes.forEach(n => {
+            if (!positionedIds.has(n._id)) allPositioned.push(n);
+        });
+
+        await performAnimatedLayoutChange(
+            () => { set({ nodes: allPositioned }); },
+            () => get().setLayoutAnimating(true),
+            () => get().setLayoutAnimating(false)
+        );
+
         try {
-            for (const node of positioned) {
-                await api.patch(`/mindmaps/nodes/${node._id}`, {
-                    x: node.x,
-                    y: node.y,
-                });
-            }
-            set({ nodes: positioned });
+            await Promise.all(allPositioned.map(node =>
+                api.patch(`/mindmaps/nodes/${node._id}`, { x: node.x, y: node.y })
+            ));
+            get().pushHistory();
         } catch (err) {
-            console.error("Failed to apply auto-layout:", err);
+            console.error("[AutoLayout] Failed to apply:", err);
         }
     },
 
     fitToScreen: () => {
         const { nodes } = get();
         if (nodes.length === 0) return;
-
         const NODE_W = 160;
         const NODE_H = 44;
         const PADDING = 80;
-
         const minX = Math.min(...nodes.map(n => n.x));
         const minY = Math.min(...nodes.map(n => n.y));
         const maxX = Math.max(...nodes.map(n => n.x + NODE_W));
         const maxY = Math.max(...nodes.map(n => n.y + NODE_H));
-
         const contentW = maxX - minX;
         const contentH = maxY - minY;
-
         const vpW = window.innerWidth;
-        const vpH = window.innerHeight - 52; // minus header
-
+        const vpH = window.innerHeight - 52;
         const scaleX = (vpW - PADDING * 2) / contentW;
         const scaleY = (vpH - PADDING * 2) / contentH;
         const newZoom = Math.min(Math.max(Math.min(scaleX, scaleY), 0.1), 2);
-
-        // Center the content
         const panX = (vpW / 2) - ((minX + contentW / 2) * newZoom);
         const panY = (vpH / 2) - ((minY + contentH / 2) * newZoom) + 52;
-
         set({ zoom: newZoom, panOffset: { x: panX, y: panY } });
     },
 
     toggleNodeCollapse: (id) => {
-        set((state) => {
-            const nodeIndex = state.nodes.findIndex((n) => n._id === id);
-            if (nodeIndex === -1) return {};
-
-            const node = state.nodes[nodeIndex];
-            // Toggle collapsed state (undefined -> true, true -> false, false -> true)
-            const newCollapsed = !node.collapsed;
-
-            const newNodes = [...state.nodes];
-            newNodes[nodeIndex] = { ...node, collapsed: newCollapsed };
-
-            let newSelectedIds = state.selectedNodeIds;
-
-            // If collapsing, deselect all descendants
-            if (newCollapsed) {
-                const descendantIds = new Set<string>();
-
-                // Helper to find descendants
-                const findDescendants = (parentId: string) => {
-                    const children = newNodes.filter(n => n.parentId === parentId);
-                    for (const child of children) {
-                        descendantIds.add(child._id);
-                        findDescendants(child._id);
+        performAnimatedLayoutChange(
+            () => {
+                set((state) => {
+                    const nodeIndex = state.nodes.findIndex((n) => n._id === id);
+                    if (nodeIndex === -1) return {};
+                    const node = state.nodes[nodeIndex];
+                    const newCollapsed = !node.collapsed;
+                    const newNodes = [...state.nodes];
+                    newNodes[nodeIndex] = { ...node, collapsed: newCollapsed };
+                    let newSelectedIds = state.selectedNodeIds;
+                    if (newCollapsed) {
+                        const descendantIds = new Set<string>();
+                        const findDescendants = (parentId: string) => {
+                            const children = newNodes.filter(n => n.parentId === parentId);
+                            for (const child of children) {
+                                descendantIds.add(child._id);
+                                findDescendants(child._id);
+                            }
+                        };
+                        findDescendants(id);
+                        let intersection = false;
+                        descendantIds.forEach(descId => {
+                            if (newSelectedIds.has(descId)) intersection = true;
+                        });
+                        if (intersection) {
+                            newSelectedIds = new Set(state.selectedNodeIds);
+                            descendantIds.forEach(descId => newSelectedIds.delete(descId));
+                        }
                     }
-                };
-                findDescendants(id);
-
-                // If any selected node is a descendant, remove it
-                let intersection = false;
-                descendantIds.forEach(descId => {
-                    if (newSelectedIds.has(descId)) intersection = true;
+                    return { nodes: newNodes, selectedNodeIds: newSelectedIds };
                 });
-
-                if (intersection) {
-                    newSelectedIds = new Set(state.selectedNodeIds);
-                    descendantIds.forEach(descId => newSelectedIds.delete(descId));
-                }
-            }
-
-            return {
-                nodes: newNodes,
-                selectedNodeIds: newSelectedIds
-            };
-        });
+            },
+            () => get().setLayoutAnimating(true),
+            () => get().setLayoutAnimating(false)
+        );
     },
 
     pushHistory: () => {
@@ -411,92 +420,262 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         set((state) => {
             const newHistory = state.history.slice(0, state.historyIndex + 1);
             newHistory.push(JSON.parse(JSON.stringify(nodes)));
-            // Limit to 50 items
             if (newHistory.length > 50) {
                 newHistory.shift();
-                return {
-                    history: newHistory,
-                    // historyIndex stays at length-1 (49)
-                    historyIndex: newHistory.length - 1
-                };
+                return { history: newHistory, historyIndex: newHistory.length - 1 };
             }
-            return {
-                history: newHistory,
-                historyIndex: newHistory.length - 1,
-            };
+            return { history: newHistory, historyIndex: newHistory.length - 1 };
         });
     },
     undo: async () => {
-        const { history, historyIndex } = get();
-        if (historyIndex > 0) {
-            const newIndex = historyIndex - 1;
-            set({
-                nodes: history[newIndex],
-                historyIndex: newIndex,
-                selectedNodeIds: new Set(), // clear selection on undo
-            });
-        }
+        await performAnimatedLayoutChange(
+            async () => {
+                const { history, historyIndex } = get();
+                if (historyIndex > 0) {
+                    const newIndex = historyIndex - 1;
+                    set({
+                        nodes: history[newIndex],
+                        historyIndex: newIndex,
+                        selectedNodeIds: new Set(),
+                    });
+                }
+            },
+            () => get().setLayoutAnimating(true),
+            () => get().setLayoutAnimating(false)
+        );
     },
     redo: async () => {
         const { history, historyIndex } = get();
-
         if (historyIndex >= history.length - 1) return;
-
         const newIndex = historyIndex + 1;
         const snapshot = history[newIndex];
-
-        // Sync to backend
+        await performAnimatedLayoutChange(
+            () => {
+                set({ nodes: JSON.parse(JSON.stringify(snapshot)), historyIndex: newIndex });
+            },
+            () => get().setLayoutAnimating(true),
+            () => get().setLayoutAnimating(false)
+        );
         try {
-            for (const node of snapshot) {
-                await api.patch(`/mindmaps/nodes/${node._id}`, {
-                    x: node.x,
-                    y: node.y,
-                    text: node.text,
+            await Promise.all(snapshot.map(node =>
+                api.patch(`/mindmaps/nodes/${node._id}`, {
+                    x: node.x, y: node.y, text: node.text
+                })
+            ));
+        } catch (err) {
+            console.error("Failed to redo sync:", err);
+        }
+    },
+
+    alignSelectedNodes: async (type) => {
+        const { selectedNodeIds, nodes } = get();
+        if (selectedNodeIds.size < 2) return;
+        const NODE_W = 160;
+        const NODE_H = 44;
+        const selectedNodes = nodes.filter(n => selectedNodeIds.has(n._id));
+        let target: number;
+        switch (type) {
+            case "left": target = Math.min(...selectedNodes.map(n => n.x)); break;
+            case "center": target = selectedNodes.reduce((sum, n) => sum + n.x + NODE_W / 2, 0) / selectedNodes.length; break;
+            case "right": target = Math.max(...selectedNodes.map(n => n.x + NODE_W)); break;
+            case "top": target = Math.min(...selectedNodes.map(n => n.y)); break;
+            case "middle": target = selectedNodes.reduce((sum, n) => sum + n.y + NODE_H / 2, 0) / selectedNodes.length; break;
+            case "bottom": target = Math.max(...selectedNodes.map(n => n.y + NODE_H)); break;
+            default: target = 0;
+        }
+        const updates = selectedNodes.map(n => {
+            let x = n.x, y = n.y;
+            if (type === "left") x = target;
+            else if (type === "center") x = target - NODE_W / 2;
+            else if (type === "right") x = target - NODE_W;
+            else if (type === "top") y = target;
+            else if (type === "middle") y = target - NODE_H / 2;
+            else if (type === "bottom") y = target - NODE_H;
+            return { id: n._id, x, y };
+        });
+        await performAnimatedLayoutChange(
+            () => {
+                set({
+                    nodes: get().nodes.map((n) => {
+                        const update = updates.find(u => u.id === n._id);
+                        return update ? { ...n, x: update.x, y: update.y } : n;
+                    }),
                 });
+            },
+            () => get().setLayoutAnimating(true),
+            () => get().setLayoutAnimating(false)
+        );
+        get().commitBatchDragEnd(updates);
+    },
+
+    distributeSelectedNodes: async (axis) => {
+        const { selectedNodeIds, nodes } = get();
+        if (selectedNodeIds.size < 3) return;
+        const NODE_W = 160;
+        const NODE_H = 44;
+        const selectedNodes = nodes.filter(n => selectedNodeIds.has(n._id));
+        const updates: { id: string; x: number; y: number }[] = [];
+        if (axis === "horizontal") {
+            const sortedNodes = [...selectedNodes].sort((a, b) => a.x - b.x);
+            const first = sortedNodes[0];
+            const last = sortedNodes[sortedNodes.length - 1];
+            const totalWidth = (last.x + NODE_W) - first.x;
+            const gap = (totalWidth - sortedNodes.length * NODE_W) / (sortedNodes.length - 1);
+            sortedNodes.forEach((node, i) => {
+                updates.push({ id: node._id, x: first.x + i * (NODE_W + gap), y: node.y });
+            });
+        } else {
+            const sortedNodes = [...selectedNodes].sort((a, b) => a.y - b.y);
+            const first = sortedNodes[0];
+            const last = sortedNodes[sortedNodes.length - 1];
+            const totalHeight = (last.y + NODE_H) - first.y;
+            const gap = (totalHeight - sortedNodes.length * NODE_H) / (sortedNodes.length - 1);
+            sortedNodes.forEach((node, i) => {
+                updates.push({ id: node._id, x: node.x, y: first.y + i * (NODE_H + gap) });
+            });
+        }
+        await performAnimatedLayoutChange(
+            () => {
+                set({
+                    nodes: get().nodes.map((n) => {
+                        const update = updates.find(u => u.id === n._id);
+                        return update ? { ...n, x: update.x, y: update.y } : n;
+                    }),
+                });
+            },
+            () => get().setLayoutAnimating(true),
+            () => get().setLayoutAnimating(false)
+        );
+        get().commitBatchDragEnd(updates);
+    },
+
+    reparentNodes: async (nodeIds, newParentId) => {
+        const { nodes } = get();
+        await performAnimatedLayoutChange(
+            () => {
+                set({ nodes: nodes.map(n => nodeIds.includes(n._id) ? { ...n, parentId: newParentId } : n) });
+            },
+            () => get().setLayoutAnimating(true),
+            () => get().setLayoutAnimating(false)
+        );
+        try {
+            await Promise.all(nodeIds.map(id => api.patch(`/mindmaps/nodes/${id}`, { parentId: newParentId })));
+            get().pushHistory();
+        } catch (err) {
+            console.error("Failed to reparent nodes:", err);
+        }
+    },
+    setLayoutAnimating: (isLayoutAnimating) => set({ isLayoutAnimating }),
+    loadVersions: async (mindMapId) => {
+        try {
+            const res = await api.get(`/mindmaps/${mindMapId}/versions`);
+            set({ versions: res.data });
+        } catch (err) {
+            console.error("Failed to load versions:", err);
+        }
+    },
+    createSnapshot: async (mindMapId, name) => {
+        try {
+            await api.post(`/mindmaps/${mindMapId}/versions`, { name });
+            get().loadVersions(mindMapId);
+        } catch (err) {
+            console.error("Failed to create snapshot:", err);
+        }
+    },
+    restoreVersion: async (mindMapId, versionId) => {
+        try {
+            const res = await api.post(`/mindmaps/${mindMapId}/versions/${versionId}/restore`);
+
+            // Handle different possible response formats
+            let restoredNodes: any[] | null = null;
+            if (Array.isArray(res.data)) {
+                restoredNodes = res.data;
+            } else if (res.data && Array.isArray(res.data.nodes)) {
+                restoredNodes = res.data.nodes;
             }
 
-            set({
-                nodes: JSON.parse(JSON.stringify(snapshot)),
-                historyIndex: newIndex,
-            });
+            if (restoredNodes) {
+                // Defensive normalization: Ensure all IDs are strings and coordinates are numbers
+                const normalizedNodes: NodeType[] = restoredNodes.map(normalizeNode);
+
+                await performAnimatedLayoutChange(
+                    () => { set({ nodes: normalizedNodes, selectedNodeIds: new Set() }); },
+                    () => get().setLayoutAnimating(true),
+                    () => get().setLayoutAnimating(false)
+                );
+                get().pushHistory();
+            } else {
+                console.warn("[Version] No nodes found in restore response. Triggering manual reload.");
+                // Fallback: reload nodes if restore response doesn't contain them
+                await get().loadNodes(mindMapId);
+            }
         } catch (err) {
-            console.error("Failed to redo:", err);
+            console.error("[Version] Failed to restore version:", err);
         }
     },
 }));
 
-// Tree layout algorithm
-function calculateTreeLayout(nodes: NodeType[], root: NodeType): NodeType[] {
+function normalizeNode(n: any): NodeType {
+    const getVal = (v: any) => {
+        if (v === null || v === undefined) return null;
+        if (typeof v === 'string') return v;
+        if (typeof v === 'object') {
+            if (v.$oid) return String(v.$oid);
+            if (v._id) return String(v._id?.$oid || v._id);
+            if (v.id) return String(v.id?.$oid || v.id);
+            return String(v);
+        }
+        return String(v);
+    };
+
+    const id = getVal(n._id);
+    let pid = getVal(n.parentId);
+
+    if (pid === "null" || pid === "undefined" || pid === "") pid = null;
+    if (id === pid) pid = null;
+
+    return {
+        ...n,
+        _id: id ?? String(Math.random()), // Fallback for ID safety
+        parentId: pid,
+        x: Number(n.x) || 0,
+        y: Number(n.y) || 0,
+    };
+}
+
+function calculateTreeLayout(nodes: NodeType[], rootNode: NodeType, anchorX: number, anchorY: number): NodeType[] {
     const positioned: NodeType[] = [];
     const HORIZONTAL_SPACING = 200;
-    const VERTICAL_SPACING = 80;
+    const VERTICAL_SPACING = 100;
 
     function layoutNode(node: NodeType, depth: number, yOffset: number): number {
         const x = depth * HORIZONTAL_SPACING;
         const children = nodes.filter(n => n.parentId === node._id);
-
         if (children.length === 0) {
             positioned.push({ ...node, x, y: yOffset });
             return 1;
         }
-
         let currentY = yOffset;
         let totalHeight = 0;
-
         for (const child of children) {
             const childHeight = layoutNode(child, depth + 1, currentY);
             currentY += childHeight * VERTICAL_SPACING;
             totalHeight += childHeight;
         }
-
-        // Center parent above children
         const y = yOffset + ((totalHeight - 1) * VERTICAL_SPACING) / 2;
         positioned.push({ ...node, x, y });
-
         return totalHeight;
     }
 
-    layoutNode(root, 0, 0);
+    layoutNode(rootNode, 0, anchorY);
+    const rootAfter = positioned.find(n => n._id === rootNode._id);
+    if (rootAfter) {
+        const dx = anchorX - rootAfter.x;
+        const dy = anchorY - rootAfter.y;
+        positioned.forEach(n => {
+            n.x += dx;
+            n.y += dy;
+        });
+    }
     return positioned;
 }
-
