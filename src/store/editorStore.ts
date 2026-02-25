@@ -15,7 +15,8 @@ export interface NodeType {
 
 export interface MindMapVersion {
     _id: string;
-    name: string;
+    label: string;
+    actionType: "manual" | "auto-layout" | "align" | "delete" | "restore";
     createdAt: string;
 }
 
@@ -67,9 +68,11 @@ interface EditorState {
     reparentNodes: (nodeIds: string[], newParentId: string) => Promise<void>;
     setLayoutAnimating: (busy: boolean) => void;
     versions: MindMapVersion[];
+    currentVersionId: string | null;
     loadVersions: (mindMapId: string) => Promise<void>;
     createSnapshot: (mindMapId: string, name: string) => Promise<void>;
     restoreVersion: (mindMapId: string, versionId: string) => Promise<void>;
+    deleteVersion: (mindMapId: string, versionId: string) => Promise<void>;
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -86,6 +89,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     mapTitle: "",
     isLayoutAnimating: false,
     versions: [],
+    currentVersionId: null,
 
     loadNodes: async (mindMapId) => {
         const [nodesRes, mapRes] = await Promise.all([
@@ -576,10 +580,21 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     },
     createSnapshot: async (mindMapId, name) => {
         try {
-            await api.post(`/mindmaps/${mindMapId}/versions`, { name });
+            await api.post(`/mindmaps/${mindMapId}/versions`, { label: name, actionType: "manual" });
             get().loadVersions(mindMapId);
         } catch (err) {
             console.error("Failed to create snapshot:", err);
+        }
+    },
+    deleteVersion: async (mindMapId, versionId) => {
+        try {
+            await api.delete(`/mindmaps/${mindMapId}/versions/${versionId}`);
+            set((state) => ({
+                versions: state.versions.filter((v) => v._id !== versionId),
+                currentVersionId: state.currentVersionId === versionId ? null : state.currentVersionId,
+            }));
+        } catch (err) {
+            console.error("Failed to delete version:", err);
         }
     },
     restoreVersion: async (mindMapId, versionId) => {
@@ -599,7 +614,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
                 const normalizedNodes: NodeType[] = restoredNodes.map(normalizeNode);
 
                 await performAnimatedLayoutChange(
-                    () => { set({ nodes: normalizedNodes, selectedNodeIds: new Set() }); },
+                    () => { set({ nodes: normalizedNodes, selectedNodeIds: new Set(), currentVersionId: versionId }); },
                     () => get().setLayoutAnimating(true),
                     () => get().setLayoutAnimating(false)
                 );
