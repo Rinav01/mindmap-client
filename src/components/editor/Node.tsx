@@ -79,7 +79,7 @@ function Node({ node, hasChildren, siblingIndex }: Props) {
       return () => clearTimeout(timer);
     });
     return () => cancelAnimationFrame(raf);
-  }, [staggerDelay]);
+  }, [staggerDelay, isDeleting]);
 
   // ... handleSave etc ...
 
@@ -166,14 +166,22 @@ function Node({ node, hasChildren, siblingIndex }: Props) {
           if (!isEditing && groupRef.current) {
             e.stopPropagation();
 
-            // Select node immediately on mouse down (if not already part of an active multiselect)
-            // This ensures the drag engine sees the node as selected.
-            if (!isSelected || e.shiftKey) {
-              selectNode(node._id, e.shiftKey);
-            }
-
             // Hand off to the drag engine — no Zustand write
             dragEngine.onNodeMouseDown(node._id, node.x, node.y, groupRef.current, e);
+          }
+        }}
+        onMouseUp={(e) => {
+          if (isPanMode || isEditing) return;
+          // Intentionally NOT stopping propagation here so Canvas can clear dragEngine state
+
+          const startX = clickStartRef.current?.x ?? e.clientX;
+          const startY = clickStartRef.current?.y ?? e.clientY;
+          const dx = Math.abs(e.clientX - startX);
+          const dy = Math.abs(e.clientY - startY);
+
+          // Only select if the mouse did not move significantly (a true click, not a drag release)
+          if (dx < 5 && dy < 5) {
+            selectNode(node._id, e.shiftKey);
           }
         }}
         onMouseEnter={() => setIsHovered(true)}
@@ -200,19 +208,24 @@ function Node({ node, hasChildren, siblingIndex }: Props) {
         {/* Puff Deletion Particles */}
         {isDeleting && (
           <g transform={`translate(${cx}, ${cy})`}>
-            {[...Array(6)].map((_, i) => (
-              <circle
-                key={i}
-                r="4"
-                fill="#94a3b8"
-                className="particle"
-                style={{
-                  // @ts-ignore
-                  "--dx": `${(Math.random() - 0.5) * 60}px`,
-                  "--dy": `${(Math.random() - 0.5) * 60}px`,
-                }}
-              />
-            ))}
+            {[...Array(6)].map((_, i) => {
+              // Using deterministic pseudo-random offsets based on index and node ID
+              const angle = (i / 6) * Math.PI * 2;
+              return (
+                <circle
+                  key={i}
+                  r="4"
+                  fill="#94a3b8"
+                  className="particle"
+                  style={{
+                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // @ts-ignore
+                    "--dx": `${Math.cos(angle) * 30}px`,
+                    "--dy": `${Math.sin(angle) * 30}px`,
+                  }}
+                />
+              );
+            })}
           </g>
         )}
 

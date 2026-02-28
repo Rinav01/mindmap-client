@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { api } from "../services/api";
 import { performAnimatedLayoutChange } from "../engine/motionEngine";
+import { socketService } from "../services/socket";
 
 export interface NodeType {
     _id: string;
@@ -73,6 +74,12 @@ interface EditorState {
     createSnapshot: (mindMapId: string, name: string) => Promise<void>;
     restoreVersion: (mindMapId: string, versionId: string) => Promise<void>;
     deleteVersion: (mindMapId: string, versionId: string) => Promise<void>;
+
+    applyRemoteNodeCreated: (node: NodeType) => void;
+    applyRemoteNodeUpdated: (id: string, updates: Partial<NodeType>) => void;
+    applyRemoteNodesUpdated: (updates: { id: string; x: number; y: number }[]) => void;
+    applyRemoteNodeDeleted: (id: string) => void;
+    applyRemoteNodesDeleted: (ids: string[]) => void;
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -148,6 +155,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             selectedNodeIds: new Set([newNode._id])
         });
         get().pushHistory();
+        socketService.emitNodeAdded(newNode);
     },
 
     commitDragEnd: async (id, x, y) => {
@@ -159,6 +167,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         try {
             await api.patch(`/mindmaps/nodes/${id}`, { x, y });
             get().pushHistory();
+            socketService.emitNodeDragged(id, x, y);
         } catch (err) {
             console.error("Failed to save node position:", err);
         }
@@ -174,6 +183,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         try {
             await Promise.all(updates.map(u => api.patch(`/mindmaps/nodes/${u.id}`, { x: u.x, y: u.y })));
             get().pushHistory();
+            socketService.emitNodesUpdated(updates);
         } catch (err) {
             console.error("Failed to save batch positions:", err);
         }
@@ -187,6 +197,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         });
         try {
             await api.patch(`/mindmaps/nodes/${id}`, { color });
+            socketService.emitNodeUpdated(id, { color });
         } catch (err) {
             console.error("Failed to save node color:", err);
         }
@@ -200,6 +211,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         });
         try {
             await api.patch(`/mindmaps/nodes/${id}`, { fontSize });
+            socketService.emitNodeUpdated(id, { fontSize });
         } catch (err) {
             console.error("Failed to save node font size:", err);
         }
@@ -236,6 +248,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
                 editingNodeId: null,
             });
             get().pushHistory();
+            socketService.emitNodeUpdated(id, { text });
         } catch (err) {
             console.error("Failed to update node text:", err);
         }
@@ -262,6 +275,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
                 };
             });
             get().pushHistory();
+            socketService.emitNodeDeleted(id);
         } catch (err) {
             console.error("Failed to delete node:", err);
             set((state) => {
@@ -305,6 +319,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
                 };
             });
             get().pushHistory();
+            socketService.emitNodesDeleted(Array.from(toRemove));
         } catch (err) {
             console.error("Failed to delete nodes:", err);
             set((state) => {
@@ -354,6 +369,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
                 api.patch(`/mindmaps/nodes/${node._id}`, { x: node.x, y: node.y })
             ));
             get().pushHistory();
+            socketService.emitNodesUpdated(
+                allPositioned.map((node) => ({ id: node._id, x: node.x, y: node.y }))
+            );
         } catch (err) {
             console.error("[AutoLayout] Failed to apply:", err);
         }
@@ -417,6 +435,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             () => get().setLayoutAnimating(true),
             () => get().setLayoutAnimating(false)
         );
+
+        socketService.emitNodeUpdated(id, { collapsed: !get().nodes.find(n => n._id === id)?.collapsed });
     },
 
     pushHistory: () => {
@@ -466,6 +486,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
                     x: node.x, y: node.y, text: node.text
                 })
             ));
+            socketService.emitNodesUpdated(
+                snapshot.map(node => ({ id: node._id, x: node.x, y: node.y }))
+            );
         } catch (err) {
             console.error("Failed to redo sync:", err);
         }
@@ -565,6 +588,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         try {
             await Promise.all(nodeIds.map(id => api.patch(`/mindmaps/nodes/${id}`, { parentId: newParentId })));
             get().pushHistory();
+            nodeIds.forEach(id => socketService.emitNodeUpdated(id, { parentId: newParentId }));
         } catch (err) {
             console.error("Failed to reparent nodes:", err);
         }
@@ -602,7 +626,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             const res = await api.post(`/mindmaps/${mindMapId}/versions/${versionId}/restore`);
 
             // Handle different possible response formats
-            let restoredNodes: any[] | null = null;
+            let restoredNodes: unknown[] | null = null;
             if (Array.isArray(res.data)) {
                 restoredNodes = res.data;
             } else if (res.data && Array.isArray(res.data.nodes)) {
@@ -628,34 +652,69 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             console.error("[Version] Failed to restore version:", err);
         }
     },
+
+    // --- Remote Change Handlers ---
+    applyRemoteNodeCreated: (node) => {
+        set((state) => ({ nodes: [...state.nodes, node] }));
+    },
+
+    applyRemoteNodeUpdated: (id, updates) => {
+        set((state) => ({
+            nodes: state.nodes.map((n) => (n._id === id ? { ...n, ...updates } : n)),
+        }));
+    },
+
+    applyRemoteNodesUpdated: (updates) => {
+        set((state) => ({
+            nodes: state.nodes.map((n) => {
+                const up = updates.find(u => u.id === n._id);
+                return up ? { ...n, ...up } : n;
+            }),
+        }));
+    },
+
+    applyRemoteNodeDeleted: (id) => {
+        set((state) => ({
+            nodes: state.nodes.filter((n) => n._id !== id && n.parentId !== id),
+        }));
+    },
+
+    applyRemoteNodesDeleted: (ids) => {
+        const idSet = new Set(ids);
+        set((state) => ({
+            nodes: state.nodes.filter((n) => !idSet.has(n._id)),
+        }));
+    },
 }));
 
-function normalizeNode(n: any): NodeType {
-    const getVal = (v: any) => {
+function normalizeNode(n: unknown): NodeType {
+    const getVal = (v: unknown) => {
         if (v === null || v === undefined) return null;
         if (typeof v === 'string') return v;
-        if (typeof v === 'object') {
-            if (v.$oid) return String(v.$oid);
-            if (v._id) return String(v._id?.$oid || v._id);
-            if (v.id) return String(v.id?.$oid || v.id);
+        if (typeof v === 'object' && v !== null) {
+            const obj = v as { $oid?: string; _id?: { $oid?: string } | string; id?: { $oid?: string } | string };
+            if (obj.$oid) return String(obj.$oid);
+            if (obj._id) return String(typeof obj._id === 'object' ? obj._id.$oid : obj._id);
+            if (obj.id) return String(typeof obj.id === 'object' ? obj.id.$oid : obj.id);
             return String(v);
         }
         return String(v);
     };
 
-    const id = getVal(n._id);
-    let pid = getVal(n.parentId);
+    const nodeRecord = n as Record<string, unknown>;
+    const id = getVal(nodeRecord._id);
+    let pid = getVal(nodeRecord.parentId);
 
     if (pid === "null" || pid === "undefined" || pid === "") pid = null;
     if (id === pid) pid = null;
 
     return {
-        ...n,
+        ...(nodeRecord as Partial<NodeType>),
         _id: id ?? String(Math.random()), // Fallback for ID safety
         parentId: pid,
-        x: Number(n.x) || 0,
-        y: Number(n.y) || 0,
-    };
+        x: Number(nodeRecord.x) || 0,
+        y: Number(nodeRecord.y) || 0,
+    } as NodeType;
 }
 
 function calculateTreeLayout(nodes: NodeType[], rootNode: NodeType, anchorX: number, anchorY: number): NodeType[] {

@@ -10,6 +10,8 @@ import NodePropertiesPanel from "../../components/editor/NodePropertiesPanel";
 import Toast from "../../components/ui/Toast";
 import KeyboardShortcuts from "../../components/editor/KeyboardShortcuts";
 import VersionPanel from "../../components/editor/VersionPanel";
+import { socketService } from "../../services/socket";
+import type { NodeType } from "../../store/editorStore";
 
 interface ToastState {
   message: string;
@@ -21,8 +23,6 @@ export default function EditorPage() {
 
   const loadNodes = useEditorStore((s) => s.loadNodes);
   const createNode = useEditorStore((s) => s.createNode);
-  const deleteNode = useEditorStore((s) => s.deleteNode);
-  const selectNode = useEditorStore((s) => s.selectNode);
   const deselectAll = useEditorStore((s) => s.deselectAll);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
@@ -34,9 +34,43 @@ export default function EditorPage() {
   const [toast, setToast] = useState<ToastState | null>(null);
   const dismissToast = useCallback(() => setToast(null), []);
 
-  // Load nodes + map title
+
+  // Load nodes + map title, and manage socket lifecycle
   useEffect(() => {
-    if (id) loadNodes(id);
+    if (id) {
+      loadNodes(id);
+      socketService.connect(id);
+
+      const handleNodeAdded = (node: NodeType) => {
+        console.log("[Socket Rx] node-added:", JSON.stringify(node));
+        useEditorStore.getState().applyRemoteNodeCreated(node);
+      };
+      const handleNodeDragged = (data: { nodeId: string, position: { x: number, y: number } }) => {
+        console.log("[Socket Rx] node-dragged:", JSON.stringify(data));
+        useEditorStore.getState().applyRemoteNodeUpdated(data.nodeId, data.position);
+      };
+      const handleNodeUpdated = (node: NodeType) => {
+        console.log("[Socket Rx] node-updated:", JSON.stringify(node));
+        useEditorStore.getState().applyRemoteNodeUpdated(node._id, node);
+      };
+      const handleNodeDeleted = (nodeId: string) => {
+        console.log("[Socket Rx] node-deleted:", nodeId);
+        useEditorStore.getState().applyRemoteNodeDeleted(nodeId);
+      };
+
+      socketService.on("node-added", handleNodeAdded);
+      socketService.on("node-dragged", handleNodeDragged);
+      socketService.on("node-updated", handleNodeUpdated);
+      socketService.on("node-deleted", handleNodeDeleted);
+
+      return () => {
+        socketService.off("node-added", handleNodeAdded);
+        socketService.off("node-dragged", handleNodeDragged);
+        socketService.off("node-updated", handleNodeUpdated);
+        socketService.off("node-deleted", handleNodeDeleted);
+        socketService.disconnect();
+      };
+    }
   }, [id, loadNodes]);
 
   // Node interaction shortcuts

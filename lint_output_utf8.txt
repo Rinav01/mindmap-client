@@ -1,0 +1,115 @@
+﻿
+> mindmap-client@0.0.0 lint
+> eslint .
+
+
+D:\Coding\mindmap-client\src\components\editor\Node.tsx
+   82:6   warning  React Hook useEffect has a missing dependency: 'isDeleting'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            react-hooks/exhaustive-deps
+  210:19  error    Use "@ts-expect-error" instead of "@ts-ignore", as "@ts-ignore" will do nothing if the following line is error-free                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      @typescript-eslint/ban-ts-comment
+  211:31  error    Error: Cannot call impure function during render
+
+`Math.random` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+D:\Coding\mindmap-client\src\components\editor\Node.tsx:211:31
+  209 |                 style={{
+  210 |                   // @ts-ignore
+> 211 |                   "--dx": `${(Math.random() - 0.5) * 60}px`,
+      |                               ^^^^^^^^^^^^^ Cannot call impure function
+  212 |                   "--dy": `${(Math.random() - 0.5) * 60}px`,
+  213 |                 }}
+  214 |               />  react-hooks/purity
+  212:31  error    Error: Cannot call impure function during render
+
+`Math.random` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+D:\Coding\mindmap-client\src\components\editor\Node.tsx:212:31
+  210 |                   // @ts-ignore
+  211 |                   "--dx": `${(Math.random() - 0.5) * 60}px`,
+> 212 |                   "--dy": `${(Math.random() - 0.5) * 60}px`,
+      |                               ^^^^^^^^^^^^^ Cannot call impure function
+  213 |                 }}
+  214 |               />
+  215 |             ))}           react-hooks/purity
+
+D:\Coding\mindmap-client\src\components\editor\NodePropertiesPanel.tsx
+  38:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+D:\Coding\mindmap-client\src\components\editor\NodePropertiesPanel.tsx:38:13
+  36 |     useEffect(() => {
+  37 |         if (selectedNode) {
+> 38 |             setTitle(selectedNode.text);
+     |             ^^^^^^^^ Avoid calling setState() directly within an effect
+  39 |         }
+  40 |     }, [selectedNode]);
+  41 |  react-hooks/set-state-in-effect
+
+D:\Coding\mindmap-client\src\context\DragContext.tsx
+  17:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+D:\Coding\mindmap-client\src\hooks\useDragEngine.ts
+  330:17  error  Error: Cannot access variable before it is declared
+
+`updateEdgesForNode` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+D:\Coding\mindmap-client\src\hooks\useDragEngine.ts:330:17
+  328 |
+  329 |             currentPositions.forEach((pos, id) => {
+> 330 |                 updateEdgesForNode(
+      |                 ^^^^^^^^^^^^^^^^^^ `updateEdgesForNode` accessed before it is declared
+  331 |                     id,
+  332 |                     pos.x,
+  333 |                     pos.y,
+
+D:\Coding\mindmap-client\src\hooks\useDragEngine.ts:429:5
+  427 |
+  428 |     // Helper to update edges
+> 429 |     function updateEdgesForNode(
+      |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 430 |         nodeId: string,
+      | ^^^^^^^^^^^^^^^^^^^^^^^
+> 431 |         newX: number,
+      ΓÇª
+      | ^^^^^^^^^^^^^^^^^^^^^^^
+> 477 |         }
+      | ^^^^^^^^^^^^^^^^^^^^^^^
+> 478 |     }
+      | ^^^^^^ `updateEdgesForNode` is declared here
+  479 |
+  480 |     const onMouseUp = useCallback(() => {
+  481 |         const drag = dragRef.current;  react-hooks/immutability
+  433:16  error  Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        @typescript-eslint/no-explicit-any
+
+D:\Coding\mindmap-client\src\pages\Dashboard\DashboardPage.tsx
+  354:5  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+D:\Coding\mindmap-client\src\pages\Dashboard\DashboardPage.tsx:354:5
+  352 |     if (view === "trash") loadTrash();
+  353 |     else loadMaps();
+> 354 |     setSearch("");            // clear search when switching tabs
+      |     ^^^^^^^^^ Avoid calling setState() directly within an effect
+  355 |   }, [view]);
+  356 |
+  357 |   const handleCreate = async () => {  react-hooks/set-state-in-effect
+  355:6  warning  React Hook useEffect has missing dependencies: 'loadMaps' and 'loadTrash'. Either include them or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      react-hooks/exhaustive-deps
+
+D:\Coding\mindmap-client\src\pages\Dashboard\MapThumbnails.tsx
+  14:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  84:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+D:\Coding\mindmap-client\src\store\editorStore.ts
+  629:32  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+Γ£û 13 problems (11 errors, 2 warnings)
+
