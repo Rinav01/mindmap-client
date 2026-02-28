@@ -11,6 +11,12 @@ node_modules
 dist
 dist-ssr
 *.local
+eslint.config.js
+fix-encoding.cjs
+fix-lines.cjs
+lint_output_utf8.txt
+lint_output.txt
+tsc-errors.txt
 
 # Editor directories and files
 .vscode/*
