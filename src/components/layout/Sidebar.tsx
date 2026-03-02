@@ -45,9 +45,12 @@ const folders = [
   { label: "Brainstorming", color: "#a855f7" },
 ];
 
+import { useAuthStore } from "../../store/authStore";
+
 export default function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, logout } = useAuthStore();
 
   return (
     <div
@@ -139,14 +142,25 @@ export default function Sidebar() {
           background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
           display: "flex", alignItems: "center", justifyContent: "center",
           color: "white", fontSize: "13px", fontWeight: 700, flexShrink: 0,
-        }}>A</div>
+        }}>{user?.name?.charAt(0)?.toUpperCase() || 'U'}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ color: "white", fontSize: "13px", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Alex Rivers</div>
-          <div style={{ color: "#6b7280", fontSize: "11px" }}>Pro Account</div>
+          <div style={{ color: "white", fontSize: "13px", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{user?.name || "User"}</div>
+          <div style={{ color: "#6b7280", fontSize: "11px" }}>{user?.email || "Pro Account"}</div>
         </div>
-        <button style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", padding: "2px" }}>
+        <button
+          onClick={() => {
+            logout();
+            navigate("/login");
+          }}
+          title="Logout"
+          style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", padding: "2px", transition: "color 0.15s" }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#ef4444"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#6b7280"; }}
+        >
           <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
           </svg>
         </button>
       </div>

@@ -1,9 +1,12 @@
 import { useRef, useState, useEffect } from "react";
 import EdgeLayer, { EdgeLayerPaths } from "./EdgeLayer";
 import NodeLayer from "./NodeLayer";
+import CursorLayer from "./CursorLayer";
 import { useEditorStore } from "../../store/editorStore";
+import { useAuthStore } from "../../store/authStore";
 import { useDragEngine } from "../../hooks/useDragEngine";
 import { DragProvider } from "../../context/DragContext";
+import { socketService } from "../../services/socket";
 
 export default function Canvas() {
     const zoom = useEditorStore((s) => s.zoom);
@@ -31,6 +34,9 @@ export default function Canvas() {
     const [isLassoActive, setIsLassoActive] = useState(false);
     const [lassoStart, setLassoStart] = useState({ x: 0, y: 0 });
     const [lassoEnd, setLassoEnd] = useState({ x: 0, y: 0 });
+
+    const user = useAuthStore((s) => s.user);
+    const lastCursorEmitRef = useRef(0);
 
     // Instantiate the high-performance drag engine
     const dragEngine = useDragEngine();
@@ -160,6 +166,19 @@ export default function Canvas() {
         } else {
             dragEngine.onMouseMove(e);
         }
+
+        // Emit live cursor location (throttled to 50ms = 20hz)
+        const now = performance.now();
+        if (now - lastCursorEmitRef.current > 50 && user) {
+            const pt = getSVGPoint(e.clientX, e.clientY);
+            const color = user.color || "#3b82f6"; // Pick a default or deterministic color if needed
+
+            // Console log tracking emission
+            // console.log("Emitting cursor:", {x: pt.x, y: pt.y, name: user.name, color});
+
+            socketService.emitCursorMoved(pt.x, pt.y, user.name || "Anonymous", color);
+            lastCursorEmitRef.current = now;
+        }
     };
 
     const handleMouseUp = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -283,6 +302,7 @@ export default function Canvas() {
                 >
                     <EdgeLayerPaths />
                     <NodeLayer />
+                    <CursorLayer />
 
                     {/* Lasso Selection Box */}
                     {isLassoActive && (

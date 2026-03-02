@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useEditorStore } from "../../store/editorStore";
+import ShareModal from "./ShareModal";
 
 const iconBtn = (active = false, disabled = false) => ({
     background: active ? "#1e3a5f" : "transparent",
@@ -37,6 +38,7 @@ export default function EditorHeader({ onAddNode, onToggleHistory, isHistoryOpen
 
     const [editingTitle, setEditingTitle] = useState(false);
     const [titleDraft, setTitleDraft] = useState("");
+    const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
     const handleTitleClick = () => {
         setTitleDraft(mapTitle);
@@ -262,6 +264,28 @@ export default function EditorHeader({ onAddNode, onToggleHistory, isHistoryOpen
                 </svg>
                 Export
             </button>
+
+            {/* Share */}
+            <button style={{
+                display: "flex", alignItems: "center", gap: "6px",
+                padding: "7px 14px", borderRadius: "8px", flexShrink: 0,
+                background: "#10b981", border: "none", cursor: "pointer",
+                color: "white", fontSize: "13px", fontWeight: 600,
+                fontFamily: "Inter, sans-serif", transition: "background 0.15s",
+            }}
+                title="Share this map to see live cursors!"
+                onClick={() => setIsShareModalOpen(true)}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#059669"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#10b981"; }}
+            >
+                <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" /><polyline points="16 6 12 2 8 6" /><line x1="12" y1="2" x2="12" y2="15" />
+                </svg>
+                Share
+            </button>
+
+            {/* Share Modal */}
+            <ShareModal isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} />
 
             {/* Avatar */}
             <div style={{

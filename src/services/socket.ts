@@ -8,6 +8,7 @@ class SocketService {
     private socket: Socket | null = null;
     private mindMapId: string | null = null;
     private disconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    private pendingListeners: Array<{ event: string, callback: (...args: any[]) => void }> = [];
 
     connect(mindMapId: string) {
         // Cancel any pending disconnection if we immediately reconnect
@@ -28,6 +29,12 @@ class SocketService {
             transports: ["websocket"],
             // You can add auth headers here if needed in the future
         });
+
+        // Attach pending listeners
+        this.pendingListeners.forEach(({ event, callback }) => {
+            this.socket?.on(event, callback);
+        });
+        this.pendingListeners = [];
 
         this.socket.on("connect", () => {
             console.log("[Socket] Connected:", this.socket?.id);
@@ -61,6 +68,7 @@ class SocketService {
             this.socket.disconnect();
             this.socket = null;
             this.mindMapId = null;
+            this.pendingListeners = [];
         }
     }
 
@@ -98,6 +106,11 @@ class SocketService {
         ids.forEach(id => this.emitNodeDeleted(id));
     }
 
+    emitCursorMoved(x: number, y: number, name: string, color: string) {
+        if (!this.socket?.connected || !this.mindMapId) return;
+        this.socket.emit("cursor-moved", { mapId: this.mindMapId, cursor: { x, y, name, color } });
+    }
+
     // --- Listeners Registration ---
 
     // We pass a callbacks object so the store can handle the raw data easily.
@@ -105,7 +118,7 @@ class SocketService {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     on(event: string, callback: (...args: any[]) => void) {
         if (!this.socket) {
-            console.warn("[Socket] Tried to register listener before connecting:", event);
+            this.pendingListeners.push({ event, callback });
             return;
         }
         this.socket.on(event, callback);
@@ -113,6 +126,8 @@ class SocketService {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     off(event: string, callback?: (...args: any[]) => void) {
+        this.pendingListeners = this.pendingListeners.filter(p => p.event !== event || (callback && p.callback !== callback));
+
         if (!this.socket) return;
         if (callback) {
             this.socket.off(event, callback);

@@ -11,7 +11,7 @@ import Toast from "../../components/ui/Toast";
 import KeyboardShortcuts from "../../components/editor/KeyboardShortcuts";
 import VersionPanel from "../../components/editor/VersionPanel";
 import { socketService } from "../../services/socket";
-import type { NodeType } from "../../store/editorStore";
+import type { NodeType, LiveCursor } from "../../store/editorStore";
 
 interface ToastState {
   message: string;
@@ -58,16 +58,33 @@ export default function EditorPage() {
         useEditorStore.getState().applyRemoteNodeDeleted(nodeId);
       };
 
+      const handleCursorMoved = (cursor: LiveCursor & { id: string }) => {
+        useEditorStore.getState().updateLiveCursor(cursor.id, {
+          x: cursor.x,
+          y: cursor.y,
+          name: cursor.name,
+          color: cursor.color
+        });
+      };
+
+      const handleUserDisconnected = (socketId: string) => {
+        useEditorStore.getState().removeLiveCursor(socketId);
+      };
+
       socketService.on("node-added", handleNodeAdded);
       socketService.on("node-dragged", handleNodeDragged);
       socketService.on("node-updated", handleNodeUpdated);
       socketService.on("node-deleted", handleNodeDeleted);
+      socketService.on("cursor-moved", handleCursorMoved);
+      socketService.on("user-disconnected", handleUserDisconnected);
 
       return () => {
         socketService.off("node-added", handleNodeAdded);
         socketService.off("node-dragged", handleNodeDragged);
         socketService.off("node-updated", handleNodeUpdated);
         socketService.off("node-deleted", handleNodeDeleted);
+        socketService.off("cursor-moved", handleCursorMoved);
+        socketService.off("user-disconnected", handleUserDisconnected);
         socketService.disconnect();
       };
     }

@@ -14,6 +14,13 @@ export interface NodeType {
     collapsed?: boolean;
 }
 
+export interface LiveCursor {
+    x: number;
+    y: number;
+    name: string;
+    color: string;
+}
+
 export interface MindMapVersion {
     _id: string;
     label: string;
@@ -75,6 +82,10 @@ interface EditorState {
     restoreVersion: (mindMapId: string, versionId: string) => Promise<void>;
     deleteVersion: (mindMapId: string, versionId: string) => Promise<void>;
 
+    liveCursors: Record<string, LiveCursor>;
+    updateLiveCursor: (id: string, data: LiveCursor) => void;
+    removeLiveCursor: (id: string) => void;
+
     applyRemoteNodeCreated: (node: NodeType) => void;
     applyRemoteNodeUpdated: (id: string, updates: Partial<NodeType>) => void;
     applyRemoteNodesUpdated: (updates: { id: string; x: number; y: number }[]) => void;
@@ -97,6 +108,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     isLayoutAnimating: false,
     versions: [],
     currentVersionId: null,
+    liveCursors: {},
 
     loadNodes: async (mindMapId) => {
         const [nodesRes, mapRes] = await Promise.all([
@@ -654,6 +666,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     },
 
     // --- Remote Change Handlers ---
+    updateLiveCursor: (id, data) => set((state) => ({
+        liveCursors: { ...state.liveCursors, [id]: data }
+    })),
+
+    removeLiveCursor: (id) => set((state) => {
+        const newCursors = { ...state.liveCursors };
+        delete newCursors[id];
+        return { liveCursors: newCursors };
+    }),
+
     applyRemoteNodeCreated: (node) => {
         set((state) => ({ nodes: [...state.nodes, node] }));
     },
