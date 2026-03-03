@@ -1,142 +1,195 @@
 # 🧠 MindMap Pro — Collaborative Infinite Canvas Engine
 
-A high-performance, professional-grade mind mapping application built with **React 19**, **TypeScript**, **Vite**, **Tailwind CSS v4**, and **Zustand**.
+[![React](https://img.shields.io/badge/React-19.2-61DAFB?logo=react)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript)](https://www.typescriptlang.org/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4.0-38B2AC?logo=tailwind-css)](https://tailwindcss.com/)
+[![Zustand](https://img.shields.io/badge/Zustand-5.0-orange)](https://zustand-demo.pmnd.rs/)
+[![Socket.io](https://img.shields.io/badge/Socket.io-4.8-black?logo=socket.io)](https://socket.io/)
 
-This project serves as a deep-dive into advanced frontend engineering, focusing on custom canvas interaction models, high-performance rendering, complex state synchronization, and **real-time collaboration**.
+MindMap Pro is a high-performance, professional-grade collaborative mind mapping application. It is engineered to handle complex node graphs with smooth 60fps interactions, real-time multi-user synchronization, and a custom animation engine.
+
+---
+
+## 📖 Table of Contents
+- [🚀 Key Features](#-key-features)
+- [🏗️ Technical Architecture](#️-technical-architecture)
+- [🎬 Deep Dive: Motion Engine (FLIP)](#-deep-dive-motion-engine-flip)
+- [📐 Coordinate System & Transformation](#-coordinate-system--transformation)
+- [🤝 Real-Time Collaboration Protocol](#-real-time-collaboration-protocol)
+- [📦 State Management & Optimistic UI](#-state-management--optimistic-ui)
+- [📂 Project Structure](#-project-structure)
+- [🧰 Tech Stack](#-tech-stack)
+- [🧪 Development & Setup](#-development--setup)
+- [📜 Keyboard Shortcuts](#-keyboard-shortcuts)
+
+---
+
+## 🚀 Key Features
+
+### 🎨 Infinite Canvas & Rendering
+-   **SVG-Based Rendering**: Leverages the browser's native SVG engine for declarative, scalable, and performant rendering of thousands of nodes and bezier connections.
+-   **Mini-Map Navigator**: A real-time, high-fidelity visualization of the entire canvas. It allows users to jump to any location instantly by clicking or dragging on the navigator.
+-   **Lasso Selection**: Support for area-based multi-node selection, enabling batch operations such as dragging, alignment, and deletion.
+-   **Snapping & Alignment**: Integrated snapping guides for precise node positioning and professional alignment tools (Left, Center, Right, Top, Middle, Bottom).
+
+### 🤝 Advanced Collaboration
+-   **Live Cursors**: High-frequency (20Hz) synchronization of peer cursor positions with smooth interpolation and color-coded labels.
+-   **Presence Awareness**: Real-time tracking of active users within a specific map, including editing states and session metadata.
+-   **Remote Editing Locks**: Visual indicators that prevent write conflicts by showing when a peer is actively editing a node's text.
+-   **Version Snapshots**: Automated and manual "Time Machine" snapshots, allowing users to restore previous states with full animated transitions.
+
+### 🛠️ Intelligent Layouts
+-   **Recursive Auto-Layout**: A hierarchical tree arrangement algorithm that calculates depth-first subtree dimensions to optimize space and prevent node overlaps.
+-   **Branch Collapse/Expand**: Intelligently toggles visibility of subtrees, automatically adjusting the rest of the map's layout to fill the void or make space.
 
 ---
 
 ## 🏗️ Technical Architecture
 
-The application is built on a decoupled, six-layer architecture designed for scale and performance:
+The application is built on a decoupled, multi-layered architecture designed for high maintainability and performance:
 
-1.  **State Layer (Zustand)**: A centralized "Source of Truth" managing the node graph, selection sets, and history snapshots.
-2.  **Motion Layer (Custom Engine)**: A specialized animation system that bridges the gap between React's state updates and smooth visual transitions using the FLIP technique.
-3.  **Interaction Layer**: Manages world-to-screen coordinate transformations for zooming, panning, and lasso selection.
-4.  **Rendering Layer (SVG)**: A declarative SVG engine that uses React 19's optimized reconciliation to render thousands of nodes and bezier edges.
-5.  **Collaboration Layer (Socket.io)**: A real-time event bus that synchronizes node operations (drag, edit, delete) across multiple connected clients.
-6.  **API Layer (Service)**: A robust synchronization layer with JWT-based auth and automated persistence.
-
----
-
-## 🧩 Deep Dive: Core Features & Implementation
-
-### 🎬 Custom Motion Engine (FLIP Architecture)
-The `motionEngine.ts` is the heart of the editor's visual polish. It solves the "staccato" jump problem during layout changes (like auto-layout or branch collapse).
-
--   **Capture Phase**: Records every node's viewport position and converts it to **World Coordinates** using `getScreenCTM().inverse()`.
--   **Execution Phase**: Performs the React state update (e.g., new coordinates from the layout algorithm).
--   **Inversion Phase**: Calculates the delta (dx, dy) between the old world-space position and the new DOM position.
--   **Play Phase**: Uses the **Web Animations API** to apply a counter-transform and animate it back to `(0, 0)` with a `cubic-bezier(0.2, 0.8, 0.2, 1)` easing.
-
-### 🌐 Real-Time Collaboration
-The application supports multi-user sessions via a dedicated `SocketService`:
--   **Optimistic UI**: Local changes are applied immediately while socket events are emitted in the background.
--   **Event Synchronization**: Handles `node-added`, `node-dragged`, `node-updated`, and `node-deleted` events.
--   **Room Management**: Users join specific "maps" (rooms) to ensure updates are scoped to the active document.
-
-### 📐 Recursive Tree Layout Algorithm
-The `autoLayout` feature implements a custom hierarchical tree arrangement:
--   **Depth-First Traversal**: Recursively visits subtrees to calculate required vertical space.
--   **Collision Avoidance**: Maintains a global `subtreeYOffset` to ensure independent root nodes do not overlap.
--   **Coordinate Normalization**: A defensive normalization layer ensures data sanity before layout calculation.
-
-### 📜 Persistent Version Snapshots
-Beyond standard Undo/Redo, the system features a robust **Snapshot & Restore** system:
--   **Atomic Snapshots**: Captures the entire graph state and persists it to the backend.
--   **Defensive Restoration**: Performs a "Hot Swap" of the state, animating nodes from their current positions to their "historical" positions.
+1.  **Rendering Layer (SVG)**: The core UI layer. Unlike Canvas API, SVG allows for easy event delegation, CSS styling, and standard accessibility features.
+2.  **Interaction Layer (Hooks)**: Managed by `useDragEngine`. This layer abstracts complex mouse and touch interactions (drags, pans, zooms) into atomic state changes.
+3.  **Animation Layer (Motion Engine)**: A specialized engine that bridges the gap between React's declarative state and the browser's Imperative Web Animations API.
+4.  **State Layer (Zustand)**: A centralized, atomic store that manages the graph structure, history stack, and real-time peer data.
+5.  **Synchronization Layer (Socket.io)**: A bidirectional event bus that ensures all clients converge on the same state with minimal latency.
 
 ---
 
-## 🎛️ User Interface & Controls
+## 🎬 Deep Dive: Motion Engine (FLIP)
 
-The editor is equipped with professional-grade tools for power users:
+The `motionEngine.ts` is responsible for "Smoothing" the transitions when the graph structure changes (e.g., during Auto-Layout). It implements a refined version of the **FLIP** technique:
 
-### ⌨️ Keyboard Shortcuts
-| Key | Action |
-| :--- | :--- |
-| `Space + Drag` | Pan Canvas |
-| `Scroll` | Zoom In / Out |
-| `Ctrl + Z` | Undo |
-| `Ctrl + Y` | Redo |
-| `Delete` | Delete Selected Node |
-| `Escape` | Deselect All |
-| `Double Click` | Edit Node Text |
-| `Enter` | Confirm Text Edit |
+1.  **Capture (First)**: Before the state update, the engine records the viewport positions of all nodes using `getBoundingClientRect()` and converts them to **World Coordinates** using the SVG's inverse CTM (Current Transformation Matrix).
+2.  **Commit (Last)**: React performs the state update (e.g., updating node `x` and `y` in the store). The DOM re-renders.
+3.  **Invert (Invert)**: The engine calculates the delta (`dx`, `dy`) between the old world-space position and the new DOM position. It then applies a counter-transform to visually "lock" the nodes in their old positions.
+4.  **Play (Play)**: Using the **Web Animations API**, the engine animates the `transform` from the delta back to `0, 0` using a custom `cubic-bezier(0.2, 0.8, 0.2, 1)` easing for a professional, snappy feel.
 
-### 🛠️ HUD Components
--   **Mini Navigator**: A real-time minimap visualization of the entire canvas for quick navigation.
--   **Floating Toolbar**: Context-aware actions (colors, layout) appearing near the selection.
--   **Version Panel**: Timeline view for restoring previous map states.
--   **Zoom Controls**: Granular zoom management alongside mouse gestures.
+---
+
+## 📐 Coordinate System & Transformation
+
+Managing an infinite canvas requires mapping between different coordinate spaces:
+
+-   **Screen Space**: Pixel coordinates relative to the browser viewport (e.g., `e.clientX`).
+-   **SVG Space (World Space)**: The absolute coordinate system of the mind map, independent of zoom or pan.
+-   **Group Space**: Coordinates relative to a specific parent node or group.
+
+**Transformation Logic:**
+The application uses `getScreenCTM().inverse()` to map screen coordinates to world coordinates. This ensures that features like **Lasso Selection** and **Node Dragging** remain accurate regardless of the current zoom level (0.1x to 3x) or pan offset.
+
+---
+
+## 🤝 Real-Time Collaboration Protocol
+
+Synchronization is handled via a dedicated `SocketService` following an "Event-Sourcing" light pattern:
+
+| Event | Direction | Description |
+| :--- | :--- | :--- |
+| `join-map` | Client -> Server | Joins a specific map room and announces presence. |
+| `node-dragged` | Client -> Server | Emits real-time position updates during a drag operation. |
+| `cursor-moved` | Client -> Server | Throttled (50ms) emission of world-space cursor coordinates. |
+| `node-editing` | Client -> Server | Signals that a node is being edited, locking it for others. |
+| `map-restored` | Client -> Server | Forces all clients to hydrate their state from a specific snapshot. |
+
+---
+
+## 📦 State Management & Optimistic UI
+
+We use **Zustand** with custom middleware for history management:
+
+-   **Optimistic Updates**: When a node is dragged or a color is changed, the local state is updated immediately for zero-latency feedback.
+-   **Sync-Back**: The `EditorStore` then asynchronously persists the change to the REST API and emits the corresponding socket event.
+-   **Conflict Resolution**: In the event of a network failure, the store can roll back to the last "server-confirmed" state or use the `historyIndex` to restore consistency.
 
 ---
 
 ## 📂 Project Structure
 
-The codebase follows a modular design to separate domain logic from UI presentation:
-
 ```text
 src/
-├── app/              # Application entry point and route definitions
-├── components/       # UI Components
-│   ├── editor/       # Core canvas components (Canvas, Node, Layers, Navigator)
-│   ├── layout/       # App-wide layout components (Sidebar, Topbar)
-│   └── ui/           # Reusable atomic UI components (Toast, Button)
-├── context/          # React Contexts (DragContext)
-├── engine/           # Pure logic engines (MotionEngine, Layout algorithms)
-├── hooks/            # Custom React hooks (useDragEngine)
-├── pages/            # View-level components (Dashboard, Editor)
-├── services/         # API client and Socket.io service integration
-├── store/            # Zustand state stores (EditorStore, MapsStore)
-├── styles/           # Global design tokens and Tailwind v4 configuration
+├── app/              # Main App entry, Router definitions
+├── components/       # UI & Domain Components
+│   ├── editor/       # Core Canvas components
+│   │   ├── Canvas.tsx          # Master SVG & Interaction container
+│   │   ├── Node.tsx            # SVG Group representing a node
+│   │   ├── EdgeLayer.tsx       # Curved bezier connection renderer
+│   │   ├── MiniNavigator.tsx   # Scaling-down canvas visualization
+│   │   └── CursorLayer.tsx     # Peer cursor visualization
+│   ├── layout/       # Sidebar, Topbar, Dashboard Shell
+│   └── ui/           # Atomic components (Toast, Modals, Buttons)
+├── engine/           # Pure Logic: Motion Engine, Layout Algorithms
+├── hooks/            # Logic Hooks: useDragEngine (interaction logic)
+├── services/         # Infrastructure: API (Axios), Socket.io
+├── store/            # State: EditorStore (Nodes/History), AuthStore (User/JWT)
 └── types/            # Centralized TypeScript interfaces
 ```
 
 ---
 
-## 🧰 Tech Stack Detail
+## 🧰 Tech Stack
 
--   **React 19**: Leverages improved concurrency and faster reconciliation.
--   **Tailwind CSS v4**: Utilizes the new high-performance engine for styling.
--   **Zustand 5**: Manages complex, nested state with optimized selectors.
--   **Socket.io-client**: Real-time bidirectional event-based communication.
--   **Vite 7**: Next-generation frontend tooling.
+-   **Framework**: [React 19](https://react.dev/) (Leveraging Concurrent Mode & Transitions).
+-   **Language**: [TypeScript 5.7+](https://www.typescriptlang.org/).
+-   **Build Tool**: [Vite 7](https://vitejs.dev/).
+-   **State**: [Zustand 5](https://github.com/pmndrs/zustand).
+-   **Styling**: [Tailwind CSS v4](https://tailwindcss.com/) (New high-performance engine).
+-   **Real-Time**: [Socket.io-client 4.8](https://socket.io/).
+-   **Animations**: [Web Animations API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Animations_API) & [Framer Motion](https://www.framer.com/motion/).
 
 ---
 
-## 🧪 Development
+## 🧪 Development & Setup
 
 ### Prerequisites
 -   Node.js 20+
--   A running instance of the MindMap Backend (with Socket.io support)
+-   MindMap Pro Backend (running on port 5000)
 
-### Setup
-```bash
-# Clone the repository
-git clone https://github.com/your-username/mindmap-client.git
+### Getting Started
+1.  **Clone the Repository**
+    ```bash
+    git clone https://github.com/your-username/mindmap-client.git
+    cd mindmap-client
+    ```
+2.  **Install Dependencies**
+    ```bash
+    npm install
+    ```
+3.  **Configure Environment**
+    Create a `.env` file:
+    ```env
+    VITE_API_URL=http://localhost:5000/api
+    VITE_SOCKET_URL=http://localhost:5000
+    ```
+4.  **Run Development Server**
+    ```bash
+    npm run dev
+    ```
 
-# Install dependencies
-npm install
+---
 
-# Configure Environment
-# Create a .env file with VITE_API_URL pointing to your backend
-# Example: VITE_API_URL=http://localhost:5000
+## 📜 Keyboard Shortcuts
 
-# Start development server
-npm run dev
-```
+| Category | Command | Key |
+| :--- | :--- | :--- |
+| **Navigation** | Pan Canvas | `Space + Drag` / `Middle Mouse` |
+| | Zoom In/Out | `Scroll Wheel` / `Ctrl + +/-` |
+| | Fit to Screen | `Ctrl + 0` |
+| **Editing** | Create Child | `Tab` |
+| | Delete Node | `Delete` / `Backspace` |
+| | Undo / Redo | `Ctrl + Z` / `Ctrl + Shift + Z` |
+| | Edit Text | `Double Click` / `Enter` |
+| **Layout** | Auto-Layout | `Ctrl + L` |
+| | Align Nodes | `Ctrl + [Arrows]` |
 
 ---
 
 ## 🎯 Engineering Highlights
-This project demonstrates mastery of:
-1.  **Coordinate Geometry**: Handling SVG coordinate spaces and matrix transformations.
-2.  **Distributed State**: Managing optimistic updates vs. server authority.
-3.  **Performance Optimization**: `requestAnimationFrame` loops and direct DOM manipulation for 60fps interactions.
-4.  **System Design**: Clean separation between the engine logic, state management, and UI.
+-   **Performance**: Selective re-rendering ensures that dragging a node only re-renders the node and its immediate edges, not the entire graph.
+-   **Robustness**: Defensive data normalization handles MongoDB-specific formats (`$oid`) seamlessly.
+-   **UX**: Smooth inertia-based panning and spring-based zooming for a "Premium" feel.
 
 ---
 
 ## 📜 License
-MIT License.
+This project is licensed under the MIT License.

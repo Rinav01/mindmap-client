@@ -38,6 +38,7 @@ function Node({ node, hasChildren, siblingIndex }: Props) {
   const cancelEditing = useEditorStore((s) => s.cancelEditing);
   const toggleNodeCollapse = useEditorStore((s) => s.toggleNodeCollapse);
   const deletingNodeIds = useEditorStore((s) => s.deletingNodeIds);
+  const remoteEditingNodes = useEditorStore((s) => s.remoteEditingNodes);
 
   // Drag engine from context — no Zustand subscription needed
   const dragEngine = useDragContext();
@@ -52,6 +53,8 @@ function Node({ node, hasChildren, siblingIndex }: Props) {
   const isSelected = selectedNodeIds.has(node._id);
   const isEditing = editingNodeId === node._id;
   const isDeleting = deletingNodeIds.has(node._id);
+  const remoteEditor = remoteEditingNodes[node._id];
+  const isRemotelyEditing = !!remoteEditor;
   const [editText, setEditText] = useState(node.text);
   const [isHovered, setIsHovered] = useState(false);
 
@@ -104,15 +107,17 @@ function Node({ node, hasChildren, siblingIndex }: Props) {
       ? "#2563eb"
       : "#1e293b";
 
-  const strokeColor = isSelected
-    ? "#60a5fa"
-    : isHovered
-      ? isRoot ? "#60a5fa" : "#64748b"
-      : isRoot
-        ? "#3b82f6"
-        : "#334155";
+  const strokeColor = isRemotelyEditing
+    ? remoteEditor.color
+    : isSelected
+      ? "#60a5fa"
+      : isHovered
+        ? isRoot ? "#60a5fa" : "#64748b"
+        : isRoot
+          ? "#3b82f6"
+          : "#334155";
 
-  const strokeWidth = isSelected ? 2 : isHovered ? 1.5 : 1.5;
+  const strokeWidth = isRemotelyEditing ? 2.5 : isSelected ? 2 : isHovered ? 1.5 : 1.5;
 
   return (
     // Outer <g> gets the ref — the drag engine mutates its transform attribute directly
@@ -279,10 +284,52 @@ function Node({ node, hasChildren, siblingIndex }: Props) {
           onDoubleClick={(e) => {
             if (isPanMode) return;
             e.stopPropagation();
+            // Soft lock: prevent editing if another user is editing this node
+            if (isRemotelyEditing) return;
             startEditing(node._id);
             setEditText(node.text);
           }}
         />
+
+        {/* Remote editing indicator badge */}
+        {isRemotelyEditing && (
+          <g transform={`translate(0, ${NODE_H + 6})`}>
+            <rect
+              x="0" y="0"
+              width={remoteEditor.name.length * 6.5 + 40}
+              height="20"
+              rx="10"
+              fill={remoteEditor.color}
+              opacity="0.9"
+            />
+            <text
+              x="10" y="14"
+              fontSize="10"
+              fontWeight="600"
+              fill="#ffffff"
+              fontFamily="Inter, sans-serif"
+            >
+              ✏️ {remoteEditor.name} editing
+            </text>
+          </g>
+        )}
+
+        {/* Remote editing glow */}
+        {isRemotelyEditing && (
+          <rect
+            width={NODE_W}
+            height={NODE_H}
+            rx="10"
+            fill="none"
+            stroke={remoteEditor.color}
+            strokeWidth="6"
+            opacity="0.2"
+            style={{
+              filter: "blur(4px)", pointerEvents: "none",
+              animation: "breathing-glow 2s ease-in-out infinite"
+            }}
+          />
+        )}
 
         {isEditing ? (
           <foreignObject x="0" y="0" width={NODE_W} height={NODE_H}>

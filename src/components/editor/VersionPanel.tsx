@@ -134,7 +134,7 @@ function TimelineEntry({
                             fontSize: "13px", fontWeight: 600,
                             color: isCurrent ? "white" : "#e2e8f0",
                             whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                            maxWidth: "140px",
+                            maxWidth: "115px",
                         }} title={displayName}>
                             {displayName}
                         </span>
@@ -142,14 +142,29 @@ function TimelineEntry({
                     <ActionBadge type={version.actionType} />
                 </div>
 
-                {/* Timestamp */}
-                <div style={{ marginTop: "5px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span
-                        style={{ fontSize: "11px", color: "#6b7280", cursor: "default" }}
-                        title={new Date(version.createdAt).toLocaleString()}
-                    >
-                        {relativeTime(version.createdAt)}
-                    </span>
+                {/* Timestamp & Author */}
+                <div style={{ marginTop: "6px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        {version.createdBy && version.createdBy.username ? (
+                            <div
+                                title={`Saved by ${version.createdBy.username}`}
+                                style={{
+                                    width: "16px", height: "16px", borderRadius: "50%",
+                                    background: version.createdBy.color || "#3b82f6",
+                                    display: "flex", alignItems: "center", justifyContent: "center",
+                                    color: "white", fontSize: "9px", fontWeight: 700,
+                                }}
+                            >
+                                {version.createdBy.username.charAt(0).toUpperCase()}
+                            </div>
+                        ) : null}
+                        <span
+                            style={{ fontSize: "11px", color: "#6b7280", cursor: "default" }}
+                            title={new Date(version.createdAt).toLocaleString()}
+                        >
+                            {relativeTime(version.createdAt)}
+                        </span>
+                    </div>
                     {isCurrent && (
                         <span style={{ fontSize: "10px", fontWeight: 700, color: cfg.color, letterSpacing: "0.05em" }}>
                             ● CURRENT

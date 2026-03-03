@@ -6,6 +6,7 @@ import FloatingToolbar from "../../components/editor/FloatingToolbar";
 import ZoomControls from "../../components/editor/ZoomControls";
 import MiniNavigator from "../../components/editor/MiniNavigator";
 import { useEditorStore } from "../../store/editorStore";
+import { useAuthStore } from "../../store/authStore";
 import NodePropertiesPanel from "../../components/editor/NodePropertiesPanel";
 import Toast from "../../components/ui/Toast";
 import KeyboardShortcuts from "../../components/editor/KeyboardShortcuts";
@@ -29,6 +30,7 @@ export default function EditorPage() {
   const selectedNodeIds = useEditorStore((s) => s.selectedNodeIds);
   const editingNodeId = useEditorStore((s) => s.editingNodeId);
   const deleteSelectedNodes = useEditorStore((s) => s.deleteSelectedNodes);
+  const user = useAuthStore((s) => s.user);
 
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
@@ -39,25 +41,29 @@ export default function EditorPage() {
   useEffect(() => {
     if (id) {
       loadNodes(id);
-      socketService.connect(id);
 
+      // Connect socket with user info for presence tracking
+      const userInfo = user ? {
+        name: user.username || user.name || "Anonymous",
+        color: user.color || "#3b82f6"
+      } : undefined;
+      socketService.connect(id, userInfo);
+
+      // --- Node event handlers ---
       const handleNodeAdded = (node: NodeType) => {
-        console.log("[Socket Rx] node-added:", JSON.stringify(node));
         useEditorStore.getState().applyRemoteNodeCreated(node);
       };
       const handleNodeDragged = (data: { nodeId: string, position: { x: number, y: number } }) => {
-        console.log("[Socket Rx] node-dragged:", JSON.stringify(data));
         useEditorStore.getState().applyRemoteNodeUpdated(data.nodeId, data.position);
       };
       const handleNodeUpdated = (node: NodeType) => {
-        console.log("[Socket Rx] node-updated:", JSON.stringify(node));
         useEditorStore.getState().applyRemoteNodeUpdated(node._id, node);
       };
       const handleNodeDeleted = (nodeId: string) => {
-        console.log("[Socket Rx] node-deleted:", nodeId);
         useEditorStore.getState().applyRemoteNodeDeleted(nodeId);
       };
 
+      // --- Cursor handlers ---
       const handleCursorMoved = (cursor: LiveCursor & { id: string }) => {
         useEditorStore.getState().updateLiveCursor(cursor.id, {
           x: cursor.x,
@@ -67,8 +73,34 @@ export default function EditorPage() {
         });
       };
 
+      // --- Presence handlers ---
+      const handleUserList = (users: Record<string, { name: string; color: string }>) => {
+        useEditorStore.getState().setOnlineUsers(users);
+      };
+      const handleUserJoined = (data: { id: string; name: string; color: string }) => {
+        useEditorStore.getState().addOnlineUser(data.id, { name: data.name, color: data.color });
+      };
       const handleUserDisconnected = (socketId: string) => {
         useEditorStore.getState().removeLiveCursor(socketId);
+        useEditorStore.getState().removeOnlineUser(socketId);
+      };
+
+      // --- Editing awareness handlers ---
+      const handleNodeEditing = (data: { nodeId: string; user: { name: string; color: string } }) => {
+        useEditorStore.getState().setRemoteNodeEditing(data.nodeId, data.user);
+      };
+      const handleNodeEditingStopped = (data: { nodeId: string }) => {
+        useEditorStore.getState().clearRemoteNodeEditing(data.nodeId);
+      };
+
+      // --- Snapshot sync handlers ---
+      const handleMapVersionsChanged = () => {
+        useEditorStore.getState().loadVersions(id);
+      };
+      const handleMapRestored = (data: { nodes: NodeType[]; versionId: string }) => {
+        // We know we need to restore these nodes
+        // Optional: show a toast that the map was restored ?
+        useEditorStore.getState().applyRemoteMapRestored(data.nodes, data.versionId);
       };
 
       socketService.on("node-added", handleNodeAdded);
@@ -76,7 +108,13 @@ export default function EditorPage() {
       socketService.on("node-updated", handleNodeUpdated);
       socketService.on("node-deleted", handleNodeDeleted);
       socketService.on("cursor-moved", handleCursorMoved);
+      socketService.on("user-list", handleUserList);
+      socketService.on("user-joined", handleUserJoined);
       socketService.on("user-disconnected", handleUserDisconnected);
+      socketService.on("node-editing", handleNodeEditing);
+      socketService.on("node-editing-stopped", handleNodeEditingStopped);
+      socketService.on("map-versions-changed", handleMapVersionsChanged);
+      socketService.on("map-restored", handleMapRestored);
 
       return () => {
         socketService.off("node-added", handleNodeAdded);
@@ -84,11 +122,17 @@ export default function EditorPage() {
         socketService.off("node-updated", handleNodeUpdated);
         socketService.off("node-deleted", handleNodeDeleted);
         socketService.off("cursor-moved", handleCursorMoved);
+        socketService.off("user-list", handleUserList);
+        socketService.off("user-joined", handleUserJoined);
         socketService.off("user-disconnected", handleUserDisconnected);
+        socketService.off("node-editing", handleNodeEditing);
+        socketService.off("node-editing-stopped", handleNodeEditingStopped);
+        socketService.off("map-versions-changed", handleMapVersionsChanged);
+        socketService.off("map-restored", handleMapRestored);
         socketService.disconnect();
       };
     }
-  }, [id, loadNodes]);
+  }, [id, loadNodes, user]);
 
   // Node interaction shortcuts
   useEffect(() => {

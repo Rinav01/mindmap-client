@@ -176,7 +176,7 @@ export default function Canvas() {
             // Console log tracking emission
             // console.log("Emitting cursor:", {x: pt.x, y: pt.y, name: user.name, color});
 
-            socketService.emitCursorMoved(pt.x, pt.y, user.name || "Anonymous", color);
+            socketService.emitCursorMoved(pt.x, pt.y, user.username || user.name || user.email?.split("@")[0] || "Anonymous", color);
             lastCursorEmitRef.current = now;
         }
     };

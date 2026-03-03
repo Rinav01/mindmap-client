@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { api } from "../services/api";
 import { performAnimatedLayoutChange } from "../engine/motionEngine";
 import { socketService } from "../services/socket";
+import { useAuthStore } from "./authStore";
 
 export interface NodeType {
     _id: string;
@@ -26,6 +27,11 @@ export interface MindMapVersion {
     label: string;
     actionType: "manual" | "auto-layout" | "align" | "delete" | "restore";
     createdAt: string;
+    createdBy?: {
+        _id: string;
+        username: string;
+        color: string;
+    };
 }
 
 interface EditorState {
@@ -86,11 +92,21 @@ interface EditorState {
     updateLiveCursor: (id: string, data: LiveCursor) => void;
     removeLiveCursor: (id: string) => void;
 
+    onlineUsers: Record<string, { name: string; color: string }>;
+    setOnlineUsers: (users: Record<string, { name: string; color: string }>) => void;
+    addOnlineUser: (id: string, data: { name: string; color: string }) => void;
+    removeOnlineUser: (id: string) => void;
+
+    remoteEditingNodes: Record<string, { name: string; color: string }>;
+    setRemoteNodeEditing: (nodeId: string, user: { name: string; color: string }) => void;
+    clearRemoteNodeEditing: (nodeId: string) => void;
+
     applyRemoteNodeCreated: (node: NodeType) => void;
     applyRemoteNodeUpdated: (id: string, updates: Partial<NodeType>) => void;
     applyRemoteNodesUpdated: (updates: { id: string; x: number; y: number }[]) => void;
     applyRemoteNodeDeleted: (id: string) => void;
     applyRemoteNodesDeleted: (ids: string[]) => void;
+    applyRemoteMapRestored: (nodes: NodeType[], versionId: string) => void;
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -109,6 +125,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     versions: [],
     currentVersionId: null,
     liveCursors: {},
+    onlineUsers: {},
+    remoteEditingNodes: {},
 
     loadNodes: async (mindMapId) => {
         const [nodesRes, mapRes] = await Promise.all([
@@ -207,6 +225,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
                 n._id === id ? { ...n, color } : n
             ),
         });
+        get().pushHistory();
         try {
             await api.patch(`/mindmaps/nodes/${id}`, { color });
             socketService.emitNodeUpdated(id, { color });
@@ -221,6 +240,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
                 n._id === id ? { ...n, fontSize } : n
             ),
         });
+        get().pushHistory();
         try {
             await api.patch(`/mindmaps/nodes/${id}`, { fontSize });
             socketService.emitNodeUpdated(id, { fontSize });
@@ -250,7 +270,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     togglePanMode: () => set((state) => ({ isPanMode: !state.isPanMode })),
     setIsPanMode: (isPanMode) => set({ isPanMode }),
 
-    startEditing: (id) => set({ editingNodeId: id }),
+    startEditing: (id) => {
+        set({ editingNodeId: id });
+        // Broadcast editing state
+        const user = useAuthStore.getState().user;
+        if (user) {
+            socketService.emitNodeEditing(id, { name: user.username || user.name, color: user.color || "#3b82f6" });
+        }
+    },
 
     updateNodeText: async (id, text) => {
         try {
@@ -261,12 +288,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             });
             get().pushHistory();
             socketService.emitNodeUpdated(id, { text });
+            socketService.emitNodeEditingStopped(id);
         } catch (err) {
             console.error("Failed to update node text:", err);
         }
     },
 
-    cancelEditing: () => set({ editingNodeId: null }),
+    cancelEditing: () => {
+        const editingId = get().editingNodeId;
+        set({ editingNodeId: null });
+        if (editingId) socketService.emitNodeEditingStopped(editingId);
+    },
 
     deleteNode: async (id) => {
         set((state) => {
@@ -618,6 +650,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         try {
             await api.post(`/mindmaps/${mindMapId}/versions`, { label: name, actionType: "manual" });
             get().loadVersions(mindMapId);
+            socketService.emitMapVersionsChanged();
         } catch (err) {
             console.error("Failed to create snapshot:", err);
         }
@@ -629,6 +662,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
                 versions: state.versions.filter((v) => v._id !== versionId),
                 currentVersionId: state.currentVersionId === versionId ? null : state.currentVersionId,
             }));
+            socketService.emitMapVersionsChanged();
         } catch (err) {
             console.error("Failed to delete version:", err);
         }
@@ -655,6 +689,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
                     () => get().setLayoutAnimating(false)
                 );
                 get().pushHistory();
+                socketService.emitMapRestored(normalizedNodes, versionId);
             } else {
                 console.warn("[Version] No nodes found in restore response. Triggering manual reload.");
                 // Fallback: reload nodes if restore response doesn't contain them
@@ -663,6 +698,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         } catch (err) {
             console.error("[Version] Failed to restore version:", err);
         }
+    },
+
+    applyRemoteMapRestored: async (nodes: NodeType[], versionId: string) => {
+        await performAnimatedLayoutChange(
+            () => { set({ nodes, selectedNodeIds: new Set(), currentVersionId: versionId }); },
+            () => get().setLayoutAnimating(true),
+            () => get().setLayoutAnimating(false)
+        );
+        get().pushHistory();
     },
 
     // --- Remote Change Handlers ---
@@ -674,6 +718,30 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         const newCursors = { ...state.liveCursors };
         delete newCursors[id];
         return { liveCursors: newCursors };
+    }),
+
+    // --- Online Presence ---
+    setOnlineUsers: (users) => set({ onlineUsers: users }),
+
+    addOnlineUser: (id, data) => set((state) => ({
+        onlineUsers: { ...state.onlineUsers, [id]: data }
+    })),
+
+    removeOnlineUser: (id) => set((state) => {
+        const newUsers = { ...state.onlineUsers };
+        delete newUsers[id];
+        return { onlineUsers: newUsers };
+    }),
+
+    // --- Remote Editing Awareness ---
+    setRemoteNodeEditing: (nodeId, user) => set((state) => ({
+        remoteEditingNodes: { ...state.remoteEditingNodes, [nodeId]: user }
+    })),
+
+    clearRemoteNodeEditing: (nodeId) => set((state) => {
+        const newEditing = { ...state.remoteEditingNodes };
+        delete newEditing[nodeId];
+        return { remoteEditingNodes: newEditing };
     }),
 
     applyRemoteNodeCreated: (node) => {

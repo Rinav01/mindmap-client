@@ -10,15 +10,23 @@ class SocketService {
     private disconnectTimer: ReturnType<typeof setTimeout> | null = null;
     private pendingListeners: Array<{ event: string, callback: (...args: any[]) => void }> = [];
 
-    connect(mindMapId: string) {
+    private userInfo: { name: string; color: string } | null = null;
+
+    connect(mindMapId: string, user?: { name: string; color: string }) {
         // Cancel any pending disconnection if we immediately reconnect
         if (this.disconnectTimer) {
             clearTimeout(this.disconnectTimer);
             this.disconnectTimer = null;
         }
 
+        if (user) this.userInfo = user;
+
         if (this.socket && this.mindMapId === mindMapId) {
-            return; // Already connecting or connected to this map
+            // Already connected, but user info may have changed — re-emit join-map
+            if (user && this.socket.connected) {
+                this.socket.emit("join-map", { mapId: mindMapId, user: this.userInfo });
+            }
+            return;
         }
 
         // Force a synchronous disconnect of whatever else is going on
@@ -27,7 +35,6 @@ class SocketService {
         this.mindMapId = mindMapId;
         this.socket = io(SOCKET_URL, {
             transports: ["websocket"],
-            // You can add auth headers here if needed in the future
         });
 
         // Attach pending listeners
@@ -38,7 +45,10 @@ class SocketService {
 
         this.socket.on("connect", () => {
             console.log("[Socket] Connected:", this.socket?.id);
-            this.socket?.emit("join-map", mindMapId);
+            this.socket?.emit("join-map", {
+                mapId: mindMapId,
+                user: this.userInfo || { name: "Anonymous", color: "#3b82f6" }
+            });
         });
 
         this.socket.on("disconnect", () => {
@@ -109,6 +119,26 @@ class SocketService {
     emitCursorMoved(x: number, y: number, name: string, color: string) {
         if (!this.socket?.connected || !this.mindMapId) return;
         this.socket.emit("cursor-moved", { mapId: this.mindMapId, cursor: { x, y, name, color } });
+    }
+
+    emitNodeEditing(nodeId: string, user: { name: string; color: string }) {
+        if (!this.socket?.connected || !this.mindMapId) return;
+        this.socket.emit("node-editing", { mapId: this.mindMapId, nodeId, user });
+    }
+
+    emitNodeEditingStopped(nodeId: string) {
+        if (!this.socket?.connected || !this.mindMapId) return;
+        this.socket.emit("node-editing-stopped", { mapId: this.mindMapId, nodeId });
+    }
+
+    emitMapVersionsChanged() {
+        if (!this.socket?.connected || !this.mindMapId) return;
+        this.socket.emit("map-versions-changed", this.mindMapId);
+    }
+
+    emitMapRestored(nodes: NodeType[], versionId: string) {
+        if (!this.socket?.connected || !this.mindMapId) return;
+        this.socket.emit("map-restored", { mapId: this.mindMapId, nodes, versionId });
     }
 
     // --- Listeners Registration ---
