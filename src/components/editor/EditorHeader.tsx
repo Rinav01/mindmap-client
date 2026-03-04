@@ -17,13 +17,15 @@ const iconBtn = (active = false, disabled = false) => ({
     opacity: disabled ? 0.45 : 1,
 } as React.CSSProperties);
 
-interface Props {
+interface EditorHeaderProps {
     onAddNode?: () => void;
     onToggleHistory?: () => void;
     isHistoryOpen?: boolean;
+    onToggleActivity?: () => void;
+    isActivityOpen?: boolean;
 }
 
-export default function EditorHeader({ onAddNode, onToggleHistory, isHistoryOpen }: Props) {
+export default function EditorHeader({ onAddNode, onToggleHistory, isHistoryOpen, onToggleActivity, isActivityOpen }: EditorHeaderProps) {
     const { id } = useParams();
     // ...
     const undo = useEditorStore((s) => s.undo);
@@ -176,8 +178,10 @@ export default function EditorHeader({ onAddNode, onToggleHistory, isHistoryOpen
                     style={iconBtn()}
                     title="Auto Layout"
                     onClick={autoLayout}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#1f2937"; (e.currentTarget as HTMLButtonElement).style.color = "white"; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#1f2937"; (e.currentTarget as HTMLButtonElement).style.color = "white"; }
+                    }
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; }
+                    }
                 >
                     <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                         <rect x="9" y="2" width="6" height="4" rx="1" />
@@ -192,13 +196,18 @@ export default function EditorHeader({ onAddNode, onToggleHistory, isHistoryOpen
                 {/* Divider */}
                 <div style={{ width: "1px", height: "20px", background: "#1f2937", margin: "0 4px" }} />
 
+                {/* Divider */}
+                <div style={{ width: "1px", height: "16px", background: "#334155", margin: "0 6px" }}></div>
+
                 {/* Undo */}
                 <button
                     style={iconBtn()}
                     onClick={undo}
                     title="Undo (Ctrl+Z)"
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#1f2937"; (e.currentTarget as HTMLButtonElement).style.color = "white"; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#1f2937"; (e.currentTarget as HTMLButtonElement).style.color = "white"; }
+                    }
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; }
+                    }
                 >
                     <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                         <polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" />
@@ -210,13 +219,32 @@ export default function EditorHeader({ onAddNode, onToggleHistory, isHistoryOpen
                     style={iconBtn()}
                     onClick={redo}
                     title="Redo (Ctrl+Y)"
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#1f2937"; (e.currentTarget as HTMLButtonElement).style.color = "white"; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#1f2937"; (e.currentTarget as HTMLButtonElement).style.color = "white"; }
+                    }
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; }
+                    }
                 >
                     <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                         <polyline points="15 14 20 9 15 4" /><path d="M4 20v-7a4 4 0 0 1 4-4h12" />
                     </svg>
                 </button>
+                {/* Divider inside toolbar */}
+                <div style={{ width: "1px", height: "24px", background: "#1f2937", flexShrink: 0, marginLeft: 2, marginRight: 2 }} />
+
+                {/* Activity Log */}
+                <button
+                    style={{
+                        ...iconBtn(isActivityOpen),
+                        color: isActivityOpen ? "#38bdf8" : "#94a3b8"
+                    }}
+                    title="Activity Log"
+                    onClick={onToggleActivity}
+                >
+                    <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                    </svg>
+                </button>
+
                 {/* History/Snapshots */}
                 <button
                     style={iconBtn(isHistoryOpen)}

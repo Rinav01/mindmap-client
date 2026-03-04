@@ -7,6 +7,7 @@ import { useAuthStore } from "./authStore";
 export interface NodeType {
     _id: string;
     text: string;
+    notes?: string;
     x: number;
     y: number;
     parentId: string | null;
@@ -32,6 +33,21 @@ export interface MindMapVersion {
         username: string;
         color: string;
     };
+}
+
+export interface ActivityLogType {
+    _id: string;
+    mindMapId: string;
+    userId: {
+        _id: string;
+        username: string;
+        color: string;
+    };
+    action: "NODE_CREATED" | "NODE_DELETED" | "NODE_EDITED" | "NODE_MOVED" | "NODE_COLOR_CHANGED";
+    nodeId?: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    metadata?: any;
+    createdAt: string;
 }
 
 interface EditorState {
@@ -66,9 +82,12 @@ interface EditorState {
     setIsPanMode: (active: boolean) => void;
     startEditing: (id: string) => void;
     updateNodeText: (id: string, text: string) => Promise<void>;
+    updateNodeNotes: (id: string, notes: string) => Promise<void>;
     updateNodeColor: (id: string, color: string) => Promise<void>;
     updateNodeFontSize: (id: string, fontSize: number) => Promise<void>;
     cancelEditing: () => void;
+    broadcastEditing: (id: string) => void;
+    broadcastEditingStopped: (id: string) => void;
     toggleNodeCollapse: (id: string) => void;
     deleteSelectedNodes: () => Promise<void>;
     deleteNode: (id: string) => Promise<void>;
@@ -101,12 +120,20 @@ interface EditorState {
     setRemoteNodeEditing: (nodeId: string, user: { name: string; color: string }) => void;
     clearRemoteNodeEditing: (nodeId: string) => void;
 
+    remoteSelections: Record<string, { nodeIds: string[]; user: { name: string; color: string } }>;
+    setRemoteSelection: (userId: string, nodeIds: string[], user: { name: string; color: string }) => void;
+    clearRemoteSelection: (userId: string) => void;
+
     applyRemoteNodeCreated: (node: NodeType) => void;
     applyRemoteNodeUpdated: (id: string, updates: Partial<NodeType>) => void;
     applyRemoteNodesUpdated: (updates: { id: string; x: number; y: number }[]) => void;
     applyRemoteNodeDeleted: (id: string) => void;
     applyRemoteNodesDeleted: (ids: string[]) => void;
     applyRemoteMapRestored: (nodes: NodeType[], versionId: string) => void;
+
+    activityLogs: ActivityLogType[];
+    loadActivityLogs: (mindMapId: string) => Promise<void>;
+    appendActivityLog: (log: ActivityLogType) => void;
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -127,6 +154,20 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     liveCursors: {},
     onlineUsers: {},
     remoteEditingNodes: {},
+    remoteSelections: {},
+    activityLogs: [],
+
+    setRemoteSelection: (userId, nodeIds, user) => set((state) => ({
+        remoteSelections: {
+            ...state.remoteSelections,
+            [userId]: { nodeIds, user }
+        }
+    })),
+    clearRemoteSelection: (userId) => set((state) => {
+        const newSelections = { ...state.remoteSelections };
+        delete newSelections[userId];
+        return { remoteSelections: newSelections };
+    }),
 
     loadNodes: async (mindMapId) => {
         const [nodesRes, mapRes] = await Promise.all([
@@ -138,6 +179,21 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         const normalizedNodes: NodeType[] = rawNodes.map(normalizeNode);
 
         set({ nodes: normalizedNodes, mapTitle: mapRes.data?.title ?? "" });
+    },
+
+    loadActivityLogs: async (mindMapId) => {
+        try {
+            const res = await api.get(`/mindmaps/${mindMapId}/activity`);
+            set({ activityLogs: res.data || [] });
+        } catch (err) {
+            console.error("Failed to load activity logs:", err);
+        }
+    },
+
+    appendActivityLog: (log) => {
+        set((state) => ({
+            activityLogs: [log, ...state.activityLogs]
+        }));
     },
 
     setMapTitle: async (mindMapId, title) => {
@@ -157,6 +213,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             } else {
                 newSet.add(id);
             }
+            // Broadcast selection
+            const user = useAuthStore.getState().user;
+            if (user) {
+                const name = user.username || user.name || "Anonymous";
+                const color = user.color || "#3b82f6";
+                socketService.emitSelectionUpdate(Array.from(newSet), { name, color });
+            }
             return { selectedNodeIds: newSet };
         });
     },
@@ -164,12 +227,28 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     selectNodes: (ids, multi = false) => {
         set((state) => {
             const newSet = new Set(multi ? state.selectedNodeIds : []);
-            ids.forEach(id => newSet.add(id));
+            ids.forEach((id) => newSet.add(id));
+            // Broadcast selection
+            const user = useAuthStore.getState().user;
+            if (user) {
+                const name = user.username || user.name || "Anonymous";
+                const color = user.color || "#3b82f6";
+                socketService.emitSelectionUpdate(Array.from(newSet), { name, color });
+            }
             return { selectedNodeIds: newSet };
         });
     },
 
-    deselectAll: () => set({ selectedNodeIds: new Set() }),
+    deselectAll: () => {
+        set({ selectedNodeIds: new Set() });
+        // Broadcast empty selection
+        const user = useAuthStore.getState().user;
+        if (user) {
+            const name = user.username || user.name || "Anonymous";
+            const color = user.color || "#3b82f6";
+            socketService.emitSelectionUpdate([], { name, color });
+        }
+    },
 
     createNode: async (mindMapId, parent) => {
         const res = await api.post("/mindmaps/nodes", {
@@ -274,9 +353,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         set({ editingNodeId: id });
         // Broadcast editing state
         const user = useAuthStore.getState().user;
-        if (user) {
-            socketService.emitNodeEditing(id, { name: user.username || user.name, color: user.color || "#3b82f6" });
-        }
+        const name = user?.username || user?.name || "Anonymous";
+        const color = user?.color || "#3b82f6";
+        socketService.emitNodeEditing(id, { name, color });
     },
 
     updateNodeText: async (id, text) => {
@@ -294,10 +373,35 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         }
     },
 
+    updateNodeNotes: async (id, notes) => {
+        try {
+            await api.patch(`/mindmaps/nodes/${id}`, { notes });
+            set({
+                nodes: get().nodes.map((n) => (n._id === id ? { ...n, notes } : n)),
+                editingNodeId: null,
+            });
+            get().pushHistory();
+            socketService.emitNodeUpdated(id, { notes });
+        } catch (err) {
+            console.error("Failed to update node notes:", err);
+        }
+    },
+
     cancelEditing: () => {
         const editingId = get().editingNodeId;
         set({ editingNodeId: null });
         if (editingId) socketService.emitNodeEditingStopped(editingId);
+    },
+
+    broadcastEditing: (id) => {
+        const user = useAuthStore.getState().user;
+        const name = user?.username || user?.name || "Anonymous";
+        const color = user?.color || "#3b82f6";
+        socketService.emitNodeEditing(id, { name, color });
+    },
+
+    broadcastEditingStopped: (id) => {
+        socketService.emitNodeEditingStopped(id);
     },
 
     deleteNode: async (id) => {

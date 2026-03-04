@@ -11,6 +11,7 @@ import NodePropertiesPanel from "../../components/editor/NodePropertiesPanel";
 import Toast from "../../components/ui/Toast";
 import KeyboardShortcuts from "../../components/editor/KeyboardShortcuts";
 import VersionPanel from "../../components/editor/VersionPanel";
+import ActivityPanel from "../../components/editor/ActivityPanel";
 import { socketService } from "../../services/socket";
 import type { NodeType, LiveCursor } from "../../store/editorStore";
 
@@ -33,6 +34,7 @@ export default function EditorPage() {
   const user = useAuthStore((s) => s.user);
 
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isActivityOpen, setIsActivityOpen] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
   const dismissToast = useCallback(() => setToast(null), []);
 
@@ -41,6 +43,7 @@ export default function EditorPage() {
   useEffect(() => {
     if (id) {
       loadNodes(id);
+      useEditorStore.getState().loadActivityLogs(id);
 
       // Connect socket with user info for presence tracking
       const userInfo = user ? {
@@ -93,6 +96,15 @@ export default function EditorPage() {
         useEditorStore.getState().clearRemoteNodeEditing(data.nodeId);
       };
 
+      // --- Selection awareness handlers ---
+      const handleSelectionUpdate = (data: { userId: string; nodeIds: string[]; user: { name: string; color: string } }) => {
+        if (data.nodeIds.length === 0) {
+          useEditorStore.getState().clearRemoteSelection(data.userId);
+        } else {
+          useEditorStore.getState().setRemoteSelection(data.userId, data.nodeIds, data.user);
+        }
+      };
+
       // --- Snapshot sync handlers ---
       const handleMapVersionsChanged = () => {
         useEditorStore.getState().loadVersions(id);
@@ -102,6 +114,11 @@ export default function EditorPage() {
         // Optional: show a toast that the map was restored ?
         useEditorStore.getState().applyRemoteMapRestored(data.nodes, data.versionId);
       };
+
+      // --- Activity feed sync handlers ---
+      const handleActivityLogAdded = (data: any) => {
+        useEditorStore.getState().appendActivityLog(data);
+      }
 
       socketService.on("node-added", handleNodeAdded);
       socketService.on("node-dragged", handleNodeDragged);
@@ -113,8 +130,10 @@ export default function EditorPage() {
       socketService.on("user-disconnected", handleUserDisconnected);
       socketService.on("node-editing", handleNodeEditing);
       socketService.on("node-editing-stopped", handleNodeEditingStopped);
+      socketService.on("selection-update", handleSelectionUpdate);
       socketService.on("map-versions-changed", handleMapVersionsChanged);
       socketService.on("map-restored", handleMapRestored);
+      socketService.on("activity-log-added", handleActivityLogAdded);
 
       return () => {
         socketService.off("node-added", handleNodeAdded);
@@ -127,8 +146,10 @@ export default function EditorPage() {
         socketService.off("user-disconnected", handleUserDisconnected);
         socketService.off("node-editing", handleNodeEditing);
         socketService.off("node-editing-stopped", handleNodeEditingStopped);
+        socketService.off("selection-update", handleSelectionUpdate);
         socketService.off("map-versions-changed", handleMapVersionsChanged);
         socketService.off("map-restored", handleMapRestored);
+        socketService.off("activity-log-added", handleActivityLogAdded);
         socketService.disconnect();
       };
     }
@@ -137,6 +158,11 @@ export default function EditorPage() {
   // Node interaction shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore global keybinds if user is typing in an input or textarea (like the Properties Panel)
+      if (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement) {
+        return;
+      }
+
       const { selectedNodeIds, editingNodeId } =
         useEditorStore.getState();
 
@@ -164,6 +190,10 @@ export default function EditorPage() {
   // Undo / Redo shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement) {
+        return;
+      }
+
       if (e.ctrlKey && e.key === "z") {
         e.preventDefault();
         undo();
@@ -225,6 +255,8 @@ export default function EditorPage() {
         onAddNode={handleAddNode}
         onToggleHistory={() => setIsHistoryOpen(!isHistoryOpen)}
         isHistoryOpen={isHistoryOpen}
+        onToggleActivity={() => setIsActivityOpen(!isActivityOpen)}
+        isActivityOpen={isActivityOpen}
       />
 
       {/* Canvas Area — offset by 52px header */}
@@ -262,6 +294,13 @@ export default function EditorPage() {
       {/* Version Panel */}
       {isHistoryOpen && (
         <VersionPanel onClose={() => setIsHistoryOpen(false)} />
+      )}
+
+      {/* Activity Panel */}
+      {isActivityOpen && (
+        <ActivityPanel
+          onClose={() => setIsActivityOpen(false)}
+        />
       )}
 
       {/* Toast notification */}

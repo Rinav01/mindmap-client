@@ -39,6 +39,7 @@ function Node({ node, hasChildren, siblingIndex }: Props) {
   const toggleNodeCollapse = useEditorStore((s) => s.toggleNodeCollapse);
   const deletingNodeIds = useEditorStore((s) => s.deletingNodeIds);
   const remoteEditingNodes = useEditorStore((s) => s.remoteEditingNodes);
+  const remoteSelections = useEditorStore((s) => s.remoteSelections);
 
   // Drag engine from context — no Zustand subscription needed
   const dragEngine = useDragContext();
@@ -55,6 +56,9 @@ function Node({ node, hasChildren, siblingIndex }: Props) {
   const isDeleting = deletingNodeIds.has(node._id);
   const remoteEditor = remoteEditingNodes[node._id];
   const isRemotelyEditing = !!remoteEditor;
+  const selectors = Object.values(remoteSelections)
+    .filter((s) => s.nodeIds.includes(node._id))
+    .map((s) => s.user);
   const [editText, setEditText] = useState(node.text);
   const [isHovered, setIsHovered] = useState(false);
 
@@ -87,7 +91,7 @@ function Node({ node, hasChildren, siblingIndex }: Props) {
   // ... handleSave etc ...
 
   const handleSave = () => {
-    if (editText.trim()) {
+    if (editText.trim() && editText !== node.text) {
       updateNodeText(node._id, editText.trim());
     } else {
       cancelEditing();
@@ -249,6 +253,25 @@ function Node({ node, hasChildren, siblingIndex }: Props) {
           />
         )}
 
+        {/* Remote selection halo(s) */}
+        {!isSelected && selectors.length > 0 && selectors.map((sel, idx) => (
+          <rect
+            key={idx}
+            className="selection-halo"
+            x={-idx * 3}
+            y={-idx * 3}
+            width={NODE_W + idx * 6}
+            height={NODE_H + idx * 6}
+            rx="10"
+            fill="none"
+            stroke={sel.color}
+            strokeWidth="6"
+            strokeDasharray="4 4"
+            opacity="0.6"
+            style={{ pointerEvents: 'none' }}
+          />
+        ))}
+
         {/* Root node bottom accent line */}
         {isRoot && (
           <rect
@@ -296,7 +319,7 @@ function Node({ node, hasChildren, siblingIndex }: Props) {
           <g transform={`translate(0, ${NODE_H + 6})`}>
             <rect
               x="0" y="0"
-              width={remoteEditor.name.length * 6.5 + 40}
+              width={remoteEditor.name.length * 6.5 + 85}
               height="20"
               rx="10"
               fill={remoteEditor.color}
@@ -311,6 +334,38 @@ function Node({ node, hasChildren, siblingIndex }: Props) {
             >
               ✏️ {remoteEditor.name} editing
             </text>
+          </g>
+        )}
+
+        {/* Remote selection badges stacked */}
+        {(!isRemotelyEditing && selectors.length > 0) && (
+          <g transform={`translate(0, -18)`}>
+            {selectors.map((sel, idx) => {
+              const textLen = sel.name.length * 6 + 10;
+              // Stack badges horizontally
+              const xPos = idx * (textLen + 10);
+              return (
+                <g key={idx} transform={`translate(${xPos}, 0)`}>
+                  <rect
+                    x="0" y="0"
+                    width={textLen}
+                    height="16"
+                    rx="4"
+                    fill={sel.color}
+                    opacity="0.9"
+                  />
+                  <text
+                    x="5" y="11"
+                    fontSize="9"
+                    fontWeight="600"
+                    fill="#ffffff"
+                    fontFamily="Inter, sans-serif"
+                  >
+                    {sel.name}
+                  </text>
+                </g>
+              );
+            })}
           </g>
         )}
 

@@ -21,9 +21,13 @@ export default function NodePropertiesPanel() {
         selectedNodeIds,
         deleteSelectedNodes,
         updateNodeText,
+        updateNodeNotes,
         updateNodeColor,
         updateNodeFontSize,
         deselectAll,
+        broadcastEditing,
+        broadcastEditingStopped,
+        remoteEditingNodes,
     } = useEditorStore();
 
     // Only show panel if exactly one node is selected
@@ -36,10 +40,14 @@ export default function NodePropertiesPanel() {
     useEffect(() => {
         if (selectedNode) {
             setTitle(selectedNode.text);
+            setNotes(selectedNode.notes || "");
         }
     }, [selectedNode]);
 
     if (!selectedNode) return null;
+
+    const isRemotelyEditing = !!remoteEditingNodes[selectedNode._id];
+    const remoteEditor = remoteEditingNodes[selectedNode._id];
 
     const inputStyle: React.CSSProperties = {
         width: "100%", padding: "10px 12px",
@@ -77,6 +85,12 @@ export default function NodePropertiesPanel() {
             </div>
 
             <div style={{ padding: "18px", display: "flex", flexDirection: "column", gap: "20px" }}>
+                {isRemotelyEditing && (
+                    <div style={{ padding: "10px", background: "rgba(59,130,246,0.1)", border: `1px solid ${remoteEditor.color}`, borderRadius: "8px", color: remoteEditor.color, fontSize: "12px", fontWeight: 600, display: "flex", alignItems: "center", gap: "6px" }}>
+                        ✏️ Locked by {remoteEditor.name}
+                    </div>
+                )}
+
                 {/* Node Title */}
                 <div>
                     <label htmlFor="node-title" style={sectionLabel}>Node Title</label>
@@ -85,11 +99,28 @@ export default function NodePropertiesPanel() {
                         name="node-title"
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
-                        onBlur={() => updateNodeText(selectedNode._id, title)}
-                        onKeyDown={(e) => { if (e.key === "Enter") updateNodeText(selectedNode._id, title); }}
-                        style={inputStyle}
-                        onFocus={(e) => { e.currentTarget.style.borderColor = "#3b82f6"; }}
+                        onBlur={() => {
+                            if (title !== selectedNode.text) {
+                                updateNodeText(selectedNode._id, title);
+                            }
+                            broadcastEditingStopped(selectedNode._id);
+                        }}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                                if (title !== selectedNode.text) {
+                                    updateNodeText(selectedNode._id, title);
+                                }
+                                broadcastEditingStopped(selectedNode._id);
+                                e.currentTarget.blur();
+                            }
+                        }}
+                        style={{ ...inputStyle, opacity: isRemotelyEditing ? 0.5 : 1 }}
+                        onFocus={(e) => {
+                            e.currentTarget.style.borderColor = "#3b82f6";
+                            broadcastEditing(selectedNode._id);
+                        }}
                         autoComplete="off"
+                        disabled={isRemotelyEditing}
                     />
                 </div>
 
@@ -106,9 +137,19 @@ export default function NodePropertiesPanel() {
                             ...inputStyle, height: "80px", resize: "none",
                             lineHeight: "1.5",
                         }}
-                        onFocus={(e) => { e.currentTarget.style.borderColor = "#3b82f6"; }}
-                        onBlur={(e) => { e.currentTarget.style.borderColor = "#334155"; }}
+                        onFocus={(e) => {
+                            e.currentTarget.style.borderColor = "#3b82f6";
+                            broadcastEditing(selectedNode._id);
+                        }}
+                        onBlur={(e) => {
+                            if (notes !== (selectedNode.notes || "")) {
+                                updateNodeNotes(selectedNode._id, notes);
+                            }
+                            e.currentTarget.style.borderColor = "#334155";
+                            broadcastEditingStopped(selectedNode._id);
+                        }}
                         autoComplete="off"
+                        disabled={isRemotelyEditing}
                     />
                 </div>
 

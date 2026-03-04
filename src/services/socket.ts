@@ -131,6 +131,11 @@ class SocketService {
         this.socket.emit("node-editing-stopped", { mapId: this.mindMapId, nodeId });
     }
 
+    emitSelectionUpdate(nodeIds: string[], user: { name: string; color: string }) {
+        if (!this.socket?.connected || !this.mindMapId) return;
+        this.socket.emit("selection-update", { mapId: this.mindMapId, nodeIds, user });
+    }
+
     emitMapVersionsChanged() {
         if (!this.socket?.connected || !this.mindMapId) return;
         this.socket.emit("map-versions-changed", this.mindMapId);
