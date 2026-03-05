@@ -8,6 +8,7 @@ interface Props {
   node: NodeType;
   hasChildren: boolean;
   siblingIndex: number;
+  isFaded?: boolean;
 }
 
 // Small icon shown to the left of node text
@@ -26,7 +27,7 @@ function NodeIcon({ isRoot }: { isRoot: boolean }) {
   );
 }
 
-function Node({ node, hasChildren, siblingIndex }: Props) {
+function Node({ node, hasChildren, siblingIndex, isFaded }: Props) {
   // ... stores and hooks ...
   const selectedNodeIds = useEditorStore((s) => s.selectedNodeIds);
   const selectNode = useEditorStore((s) => s.selectNode);
@@ -40,6 +41,8 @@ function Node({ node, hasChildren, siblingIndex }: Props) {
   const deletingNodeIds = useEditorStore((s) => s.deletingNodeIds);
   const remoteEditingNodes = useEditorStore((s) => s.remoteEditingNodes);
   const remoteSelections = useEditorStore((s) => s.remoteSelections);
+  const currentUserRole = useEditorStore((s) => s.currentUserRole);
+  const isViewer = currentUserRole === "VIEWER";
 
   // Drag engine from context — no Zustand subscription needed
   const dragEngine = useDragContext();
@@ -160,7 +163,8 @@ function Node({ node, hasChildren, siblingIndex }: Props) {
       {/* Pop animation wrapper */}
       <g
         style={{
-          opacity,
+          opacity: isFaded ? 0.15 : opacity,
+          pointerEvents: isFaded ? "none" : "auto",
           cursor: isPanMode ? "grab" : (isEditing ? "text" : "grab"),
           transform: `translate(${cx}px, ${cy}px) scale(${scale}) translate(${-cx}px, ${-cy}px)`,
           transition:
@@ -172,7 +176,8 @@ function Node({ node, hasChildren, siblingIndex }: Props) {
           if (isPanMode) return;
 
           clickStartRef.current = { x: e.clientX, y: e.clientY };
-          if (!isEditing && groupRef.current) {
+          clickStartRef.current = { x: e.clientX, y: e.clientY };
+          if (!isEditing && !isViewer && groupRef.current) {
             e.stopPropagation();
 
             // Hand off to the drag engine — no Zustand write
@@ -305,7 +310,7 @@ function Node({ node, hasChildren, siblingIndex }: Props) {
             // selectNode moved to onMouseDown for better drag engine support
           }}
           onDoubleClick={(e) => {
-            if (isPanMode) return;
+            if (isPanMode || isViewer) return;
             e.stopPropagation();
             // Soft lock: prevent editing if another user is editing this node
             if (isRemotelyEditing) return;
@@ -447,7 +452,7 @@ function Node({ node, hasChildren, siblingIndex }: Props) {
         )}
 
         {/* Add child button */}
-        {isSelected && !isEditing && (
+        {isSelected && !isEditing && !isViewer && (
           <circle
             cx={NODE_W + 10}
             cy={cy}
@@ -457,7 +462,7 @@ function Node({ node, hasChildren, siblingIndex }: Props) {
             strokeWidth="1.5"
             style={{ cursor: "pointer" }}
             onClick={(e) => {
-              if (isPanMode) return;
+              if (isPanMode || isViewer) return;
               e.stopPropagation();
               if (id) createNode(id, node);
             }}

@@ -3,7 +3,7 @@ import { useEditorStore } from "../../store/editorStore";
 import type { LiveCursor } from "../../store/editorStore";
 
 // Each cursor tracks its own interpolated position via refs
-function InterpolatedCursor({ id, cursor }: { id: string; cursor: LiveCursor }) {
+function InterpolatedCursor({ id, cursor }: { id: string; cursor: import("../../store/editorStore").LiveCursor }) {
     const gRef = useRef<SVGGElement>(null);
     const currentPos = useRef({ x: cursor.x, y: cursor.y });
     const targetPos = useRef({ x: cursor.x, y: cursor.y });

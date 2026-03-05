@@ -13,7 +13,8 @@ import KeyboardShortcuts from "../../components/editor/KeyboardShortcuts";
 import VersionPanel from "../../components/editor/VersionPanel";
 import ActivityPanel from "../../components/editor/ActivityPanel";
 import { socketService } from "../../services/socket";
-import type { NodeType, LiveCursor } from "../../store/editorStore";
+import type { NodeType, LiveCursor, NodeCommentType } from "../../store/editorStore";
+import SkeletonEditor from "../../components/editor/SkeletonEditor";
 
 interface ToastState {
   message: string;
@@ -24,6 +25,7 @@ export default function EditorPage() {
   const { id } = useParams();
 
   const loadNodes = useEditorStore((s) => s.loadNodes);
+  const isLoadingMap = useEditorStore((s) => s.isLoadingMap);
   const createNode = useEditorStore((s) => s.createNode);
   const deselectAll = useEditorStore((s) => s.deselectAll);
   const undo = useEditorStore((s) => s.undo);
@@ -38,12 +40,15 @@ export default function EditorPage() {
   const [toast, setToast] = useState<ToastState | null>(null);
   const dismissToast = useCallback(() => setToast(null), []);
 
+  const focusNodeId = useEditorStore((s) => s.focusNodeId);
+  const setFocusNodeId = useEditorStore((s) => s.setFocusNodeId);
 
   // Load nodes + map title, and manage socket lifecycle
   useEffect(() => {
     if (id) {
       loadNodes(id);
       useEditorStore.getState().loadActivityLogs(id);
+      useEditorStore.getState().loadMapMembers(id);
 
       // Connect socket with user info for presence tracking
       const userInfo = user ? {
@@ -120,6 +125,14 @@ export default function EditorPage() {
         useEditorStore.getState().appendActivityLog(data);
       }
 
+      const handleCommentAdded = (data: { nodeId: string; comment: NodeCommentType }) => {
+        useEditorStore.getState().applyRemoteCommentAdded(data.nodeId, data.comment);
+      };
+
+      const handleCommentDeleted = (data: { nodeId: string; commentId: string }) => {
+        useEditorStore.getState().applyRemoteCommentDeleted(data.nodeId, data.commentId);
+      };
+
       socketService.on("node-added", handleNodeAdded);
       socketService.on("node-dragged", handleNodeDragged);
       socketService.on("node-updated", handleNodeUpdated);
@@ -134,6 +147,8 @@ export default function EditorPage() {
       socketService.on("map-versions-changed", handleMapVersionsChanged);
       socketService.on("map-restored", handleMapRestored);
       socketService.on("activity-log-added", handleActivityLogAdded);
+      socketService.on("comment-added", handleCommentAdded);
+      socketService.on("comment-deleted", handleCommentDeleted);
 
       return () => {
         socketService.off("node-added", handleNodeAdded);
@@ -150,6 +165,8 @@ export default function EditorPage() {
         socketService.off("map-versions-changed", handleMapVersionsChanged);
         socketService.off("map-restored", handleMapRestored);
         socketService.off("activity-log-added", handleActivityLogAdded);
+        socketService.off("comment-added", handleCommentAdded);
+        socketService.off("comment-deleted", handleCommentDeleted);
         socketService.disconnect();
       };
     }
@@ -247,6 +264,10 @@ export default function EditorPage() {
 
   const panelOpen = selectedNodeIds.size === 1;
 
+  if (isLoadingMap) {
+    return <SkeletonEditor />;
+  }
+
   return (
     <div style={{ height: "100vh", background: "#0f172a", overflow: "hidden", position: "relative", fontFamily: "Inter, sans-serif" }}>
 
@@ -271,6 +292,36 @@ export default function EditorPage() {
       {/* Mini Navigator */}
       <MiniNavigator />
       <KeyboardShortcuts />
+
+      {/* Focus Mode Exit Pill */}
+      {focusNodeId && (
+        <div style={{
+          position: "fixed", top: "70px", left: "50%", transform: "translateX(-50%)",
+          display: "flex", alignItems: "center", gap: "10px",
+          background: "rgba(30,41,59,0.95)", border: "1px solid #3b82f6",
+          borderRadius: "20px", padding: "6px 16px",
+          color: "#e2e8f0", fontSize: "13px", fontWeight: 500,
+          backdropFilter: "blur(8px)", zIndex: 40,
+          boxShadow: "0 4px 12px rgba(0,0,0,0.5)"
+        }}>
+          <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#3b82f6", display: "inline-block", animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite" }} />
+            Viewing Subtree
+          </span>
+          <div style={{ width: "1px", height: "14px", background: "#475569" }} />
+          <button
+            onClick={() => setFocusNodeId(null)}
+            style={{
+              background: "transparent", border: "none", color: "#93c5fd",
+              fontSize: "13px", fontWeight: 600, cursor: "pointer", padding: "0 4px"
+            }}
+            onMouseEnter={e => e.currentTarget.style.color = "#bfdbfe"}
+            onMouseLeave={e => e.currentTarget.style.color = "#93c5fd"}
+          >
+            Exit Focus
+          </button>
+        </div>
+      )}
 
       {/* Editing Mode Active pill — only shown while editing a node's text */}
       {editingNodeId && (

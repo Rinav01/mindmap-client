@@ -275,6 +275,7 @@ export default function Canvas() {
     return (
         <DragProvider value={dragEngine}>
             <svg
+                id="mindmap-canvas"
                 ref={svgRef}
                 width="100%"
                 height="100%"

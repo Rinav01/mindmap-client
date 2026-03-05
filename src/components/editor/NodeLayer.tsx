@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useEditorStore } from "../../store/editorStore";
 import Node from "./Node";
 
@@ -35,7 +36,6 @@ export default function NodeLayer() {
     childrenMap.get(pId)?.push(node);
   });
 
-  // Recursive visibility filter
   const visibleNodes: { node: typeof nodes[0], index: number }[] = [];
   const traverse = (parentId: string | null) => {
     const children = childrenMap.get(parentId);
@@ -60,6 +60,29 @@ export default function NodeLayer() {
     }
   });
 
+  const focusNodeId = useEditorStore((s) => s.focusNodeId);
+
+  // Compute focused subtree via BFS — memoized so the Set reference stays stable
+  const focusedSubtree = useMemo(() => {
+    if (!focusNodeId) return new Set<string>();
+    const result = new Set<string>();
+    const queue = [focusNodeId];
+    const childrenLookup = new Map<string, string[]>();
+    nodes.forEach(n => {
+      if (n.parentId) {
+        if (!childrenLookup.has(n.parentId)) childrenLookup.set(n.parentId, []);
+        childrenLookup.get(n.parentId)!.push(n._id);
+      }
+    });
+    while (queue.length > 0) {
+      const id = queue.shift()!;
+      result.add(id);
+      const kids = childrenLookup.get(id);
+      if (kids) queue.push(...kids);
+    }
+    return result;
+  }, [nodes, focusNodeId]);
+
   return (
     <>
       {visibleNodes.map(({ node, index }) => (
@@ -68,6 +91,7 @@ export default function NodeLayer() {
           node={node}
           hasChildren={childrenMap.has(node._id)}
           siblingIndex={index}
+          isFaded={!!focusNodeId && !focusedSubtree.has(node._id)}
         />
       ))}
 

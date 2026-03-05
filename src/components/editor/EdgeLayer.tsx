@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useEditorStore } from "../../store/editorStore";
 import { useDragContext } from "../../context/DragContext";
 
@@ -43,6 +44,28 @@ export function EdgeLayerPaths() {
   const selectedNodeIds = useEditorStore((s) => s.selectedNodeIds);
   const isLayoutAnimating = useEditorStore((s) => s.isLayoutAnimating);
   const { registerEdge } = useDragContext();
+  const focusNodeId = useEditorStore((s) => s.focusNodeId);
+
+  // Stable BFS subtree — useMemo so Set reference doesn't change every render
+  const focusedSubtree = useMemo(() => {
+    if (!focusNodeId) return new Set<string>();
+    const result = new Set<string>();
+    const queue = [focusNodeId];
+    const childrenLookup = new Map<string, string[]>();
+    nodes.forEach(n => {
+      if (n.parentId) {
+        if (!childrenLookup.has(n.parentId)) childrenLookup.set(n.parentId, []);
+        childrenLookup.get(n.parentId)!.push(n._id);
+      }
+    });
+    while (queue.length > 0) {
+      const id = queue.shift()!;
+      result.add(id);
+      const kids = childrenLookup.get(id);
+      if (kids) queue.push(...kids);
+    }
+    return result;
+  }, [nodes, focusNodeId]);
 
   // Precompute visibility set
   const childrenMap = new Map<string | null, typeof nodes>();
@@ -98,6 +121,8 @@ export function EdgeLayerPaths() {
         const controlX = (startX + endX) / 2;
         const d = `M ${startX} ${startY} C ${controlX} ${startY}, ${controlX} ${endY}, ${endX} ${endY}`;
 
+        const isFaded = !!focusNodeId && !focusedSubtree.has(node._id);
+
         // Highlight edge if either endpoint is selected
         const isHighlighted =
           selectedNodeIds.has(node._id) ||
@@ -106,7 +131,7 @@ export function EdgeLayerPaths() {
         return (
           <g key={node._id}>
             {/* Halo background (breathing) */}
-            {isHighlighted && (
+            {isHighlighted && !isFaded && (
               <path
                 d={d}
                 className="edge-halo"
@@ -127,9 +152,10 @@ export function EdgeLayerPaths() {
               fill="none"
               filter={isHighlighted ? "url(#edge-glow)" : undefined}
               style={{
+                opacity: isFaded ? 0.15 : 1,
                 transition: isLayoutAnimating
                   ? 'none'
-                  : 'stroke 0.4s ease, stroke-width 0.4s ease, d 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)',
+                  : 'opacity 0.28s ease, stroke 0.4s ease, stroke-width 0.4s ease, d 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)',
               }}
             />
             {/* Overlay flow path (animated dashes) */}
@@ -140,7 +166,7 @@ export function EdgeLayerPaths() {
               strokeWidth={1.5}
               fill="none"
               style={{
-                opacity: isHighlighted ? 0.8 : 0.4,
+                opacity: isFaded ? 0.05 : (isHighlighted ? 0.8 : 0.4),
                 pointerEvents: 'none',
                 transition: isLayoutAnimating
                   ? 'none'

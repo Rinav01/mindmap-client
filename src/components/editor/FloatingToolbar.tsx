@@ -14,6 +14,8 @@ export default function FloatingToolbar({ onDelete }: Props) {
     const startEditing = useEditorStore((s) => s.startEditing);
     const alignSelectedNodes = useEditorStore((s) => s.alignSelectedNodes);
     const distributeSelectedNodes = useEditorStore((s) => s.distributeSelectedNodes);
+    const focusNodeId = useEditorStore((s) => s.focusNodeId);
+    const setFocusNodeId = useEditorStore((s) => s.setFocusNodeId);
 
     // For toolbar, if multiple selected, dragging is main action.
     // If single selected, show standard toolbar.
@@ -89,6 +91,23 @@ export default function FloatingToolbar({ onDelete }: Props) {
             ),
             onClick: undefined,
             disabled: true,
+        },
+        {
+            title: selectedNode ? (focusNodeId === selectedNode._id ? "Exit Focus" : "Focus on Subtree") : "Select a node first",
+            icon: (
+                <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
+                    <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
+                    <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path>
+                    <path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
+                </svg>
+            ),
+            onClick: () => {
+                if (focusNodeId === selectedNode?._id) setFocusNodeId(null);
+                else setFocusNodeId(selectedNode?._id || null);
+            },
+            disabled: !selectedNode,
         },
         {
             title: hasSelection ? (selectedNodeIds.size > 1 ? `Delete ${selectedNodeIds.size} nodes` : "Delete selected node") : "Select a node first",

@@ -1,5 +1,7 @@
 import { useEditorStore } from "../../store/editorStore";
 import { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
+import { useAuthStore } from "../../store/authStore";
 
 const COLORS = [
     { hex: "#ffffff", label: "White" },
@@ -28,6 +30,10 @@ export default function NodePropertiesPanel() {
         broadcastEditing,
         broadcastEditingStopped,
         remoteEditingNodes,
+        comments,
+        loadComments,
+        addComment,
+        deleteComment,
     } = useEditorStore();
 
     // Only show panel if exactly one node is selected
@@ -36,18 +42,27 @@ export default function NodePropertiesPanel() {
 
     const [title, setTitle] = useState("");
     const [notes, setNotes] = useState("");
+    const [newComment, setNewComment] = useState("");
+    const { id: mapId } = useParams();
+    const currentUser = useAuthStore((s) => s.user);
 
     useEffect(() => {
         if (selectedNode) {
             setTitle(selectedNode.text);
             setNotes(selectedNode.notes || "");
+            if (mapId) {
+                loadComments(mapId, selectedNode._id);
+            }
         }
-    }, [selectedNode]);
+    }, [selectedNode, mapId, loadComments]);
 
     if (!selectedNode) return null;
 
+    const currentUserRole = useEditorStore.getState().currentUserRole;
+    const isViewer = currentUserRole === "VIEWER";
     const isRemotelyEditing = !!remoteEditingNodes[selectedNode._id];
     const remoteEditor = remoteEditingNodes[selectedNode._id];
+    const isDisabled = isViewer || isRemotelyEditing;
 
     const inputStyle: React.CSSProperties = {
         width: "100%", padding: "10px 12px",
@@ -114,13 +129,13 @@ export default function NodePropertiesPanel() {
                                 e.currentTarget.blur();
                             }
                         }}
-                        style={{ ...inputStyle, opacity: isRemotelyEditing ? 0.5 : 1 }}
+                        style={{ ...inputStyle, opacity: isDisabled ? 0.5 : 1 }}
                         onFocus={(e) => {
                             e.currentTarget.style.borderColor = "#3b82f6";
                             broadcastEditing(selectedNode._id);
                         }}
                         autoComplete="off"
-                        disabled={isRemotelyEditing}
+                        disabled={isDisabled}
                     />
                 </div>
 
@@ -149,7 +164,7 @@ export default function NodePropertiesPanel() {
                             broadcastEditingStopped(selectedNode._id);
                         }}
                         autoComplete="off"
-                        disabled={isRemotelyEditing}
+                        disabled={isDisabled}
                     />
                 </div>
 
@@ -167,15 +182,17 @@ export default function NodePropertiesPanel() {
                                         <button
                                             key={c.hex}
                                             title={c.label}
+                                            disabled={isDisabled}
                                             onClick={() => updateNodeColor(selectedNode._id, c.hex)}
                                             style={{
                                                 width: "100%", aspectRatio: "1",
                                                 background: c.hex === "#ffffff" ? "white" : c.hex,
                                                 border: isActive ? "2px solid #3b82f6" : "2px solid transparent",
-                                                borderRadius: "7px", cursor: "pointer",
+                                                borderRadius: "7px", cursor: isDisabled ? "not-allowed" : "pointer",
                                                 outline: isActive ? "2px solid rgba(59,130,246,0.4)" : "none",
                                                 outlineOffset: "1px",
                                                 transition: "outline 0.15s, border 0.15s",
+                                                opacity: isDisabled ? 0.5 : 1,
                                             }}
                                         />
                                     );
@@ -188,24 +205,28 @@ export default function NodePropertiesPanel() {
                             <div style={{ fontSize: "11px", color: "#6b7280", marginBottom: "8px" }}>Font Size</div>
                             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                                 <button
+                                    disabled={isDisabled}
                                     onClick={() => updateNodeFontSize(selectedNode._id, (selectedNode.fontSize ?? 14) - 1)}
                                     style={{
                                         width: "28px", height: "28px", borderRadius: "7px",
                                         background: "#1e293b", border: "1px solid #334155",
-                                        color: "white", cursor: "pointer", fontSize: "16px",
+                                        color: "white", cursor: isDisabled ? "not-allowed" : "pointer", fontSize: "16px",
                                         display: "flex", alignItems: "center", justifyContent: "center",
+                                        opacity: isDisabled ? 0.5 : 1,
                                     }}
                                 >−</button>
                                 <span style={{ color: "white", fontSize: "14px", fontWeight: 600, minWidth: "24px", textAlign: "center" }}>
                                     {selectedNode.fontSize ?? 14}
                                 </span>
                                 <button
+                                    disabled={isDisabled}
                                     onClick={() => updateNodeFontSize(selectedNode._id, (selectedNode.fontSize ?? 14) + 1)}
                                     style={{
                                         width: "28px", height: "28px", borderRadius: "7px",
                                         background: "#1e293b", border: "1px solid #334155",
-                                        color: "white", cursor: "pointer", fontSize: "16px",
+                                        color: "white", cursor: isDisabled ? "not-allowed" : "pointer", fontSize: "16px",
                                         display: "flex", alignItems: "center", justifyContent: "center",
+                                        opacity: isDisabled ? 0.5 : 1,
                                     }}
                                 >+</button>
                             </div>
@@ -213,34 +234,8 @@ export default function NodePropertiesPanel() {
                     </div>
                 </div>
 
-                {/* Attachments (mock UI) */}
+                {/* Attachments (mock UI deleted for cleanup) */}
                 <div>
-                    <div style={sectionLabel}>Attachments</div>
-                    <div style={{
-                        display: "flex", alignItems: "center", gap: "10px",
-                        padding: "10px 12px", background: "#0f172a",
-                        border: "1px solid #334155", borderRadius: "8px", marginBottom: "8px",
-                    }}>
-                        <div style={{
-                            width: "28px", height: "28px", background: "#1e3a5f",
-                            borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-                        }}>
-                            <svg width="14" height="14" fill="none" stroke="#60a5fa" strokeWidth="2" viewBox="0 0 24 24">
-                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
-                            </svg>
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ color: "white", fontSize: "12px", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                Project_Brief_Final.pdf
-                            </div>
-                            <div style={{ color: "#6b7280", fontSize: "11px" }}>2 hours ago</div>
-                        </div>
-                        <button style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", padding: "2px" }}>
-                            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" />
-                            </svg>
-                        </button>
-                    </div>
                     <button style={{
                         width: "100%", padding: "9px", borderRadius: "8px",
                         background: "transparent", border: "1px dashed #334155",
@@ -249,6 +244,7 @@ export default function NodePropertiesPanel() {
                         letterSpacing: "0.05em", textTransform: "uppercase",
                         transition: "border-color 0.15s, color 0.15s",
                     }}
+                        title="File attachments coming soon!"
                         onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#3b82f6"; (e.currentTarget as HTMLButtonElement).style.color = "#3b82f6"; }}
                         onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#334155"; (e.currentTarget as HTMLButtonElement).style.color = "#6b7280"; }}
                     >
@@ -259,16 +255,97 @@ export default function NodePropertiesPanel() {
                     </button>
                 </div>
 
-                {/* Metadata */}
-                <div style={{ display: "flex", gap: "12px" }}>
-                    <div style={{ flex: 1 }}>
-                        <div style={sectionLabel}>Created By</div>
-                        <div style={{ color: "white", fontSize: "13px" }}>Alex Johnson</div>
+                {/* â”€â”€â”€ Comments Section â”€â”€â”€ */}
+                <div style={{ marginTop: "10px", borderTop: "1px solid #1f2937", paddingTop: "20px" }}>
+                    <div style={{ ...sectionLabel, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        Comments
+                        <span style={{ background: "#1e293b", padding: "2px 6px", borderRadius: "10px", color: "#9ca3af", fontSize: "9px" }}>
+                            {comments[selectedNode._id]?.length || 0}
+                        </span>
                     </div>
-                    <div style={{ flex: 1 }}>
-                        <div style={sectionLabel}>Last Edited</div>
-                        <div style={{ color: "white", fontSize: "13px" }}>Today, 10:24 AM</div>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: "12px", maxHeight: "250px", overflowY: "auto", paddingRight: "4px" }}>
+                        {(comments[selectedNode._id] || []).map((c) => (
+                            <div key={c._id} style={{ display: "flex", gap: "10px" }}>
+                                <div style={{
+                                    width: "28px", height: "28px", borderRadius: "50%", background: c.userId?.color || "#3b82f6",
+                                    color: "white", display: "flex", alignItems: "center", justifyContent: "center",
+                                    fontSize: "12px", fontWeight: 700, flexShrink: 0
+                                }}>
+                                    {(c.userId?.name || c.userId?.username || "?").charAt(0).toUpperCase()}
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2px" }}>
+                                        <div style={{ color: "white", fontSize: "12px", fontWeight: 600 }}>
+                                            {c.userId?.name || c.userId?.username || "Unknown User"}
+                                        </div>
+                                        <div style={{ color: "#6b7280", fontSize: "10px" }}>
+                                            {new Date(c.createdAt).toLocaleDateString()}
+                                        </div>
+                                        {((currentUser?._id === c.userId._id) || currentUserRole === "OWNER") && !isViewer && (
+                                            <button
+                                                onClick={() => {
+                                                    if (mapId) deleteComment(mapId, selectedNode._id, c._id);
+                                                }}
+                                                style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", marginLeft: "10px", padding: 0 }}
+                                                title="Delete Comment"
+                                            >
+                                                <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                    <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" />
+                                                </svg>
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div style={{ color: "#d1d5db", fontSize: "12px", lineHeight: 1.4, wordBreak: "break-word" }}>
+                                        {c.content}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
                     </div>
+
+                    {!isViewer && (
+                        <div style={{ marginTop: "12px", display: "flex", gap: "8px" }}>
+                            <input
+                                value={newComment}
+                                onChange={(e) => setNewComment(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter" && newComment.trim() && mapId) {
+                                        addComment(mapId, selectedNode._id, newComment);
+                                        setNewComment("");
+                                    }
+                                }}
+                                placeholder="Add a comment..."
+                                style={{
+                                    flex: 1, padding: "8px 12px",
+                                    background: "#0f172a", border: "1px solid #334155",
+                                    borderRadius: "8px", color: "white", fontSize: "12px",
+                                    fontFamily: "Inter, sans-serif", outline: "none",
+                                }}
+                            />
+                            <button
+                                onClick={() => {
+                                    if (newComment.trim() && mapId) {
+                                        addComment(mapId, selectedNode._id, newComment);
+                                        setNewComment("");
+                                    }
+                                }}
+                                disabled={!newComment.trim()}
+                                style={{
+                                    background: newComment.trim() ? "#2563eb" : "#1e293b",
+                                    color: newComment.trim() ? "white" : "#6b7280",
+                                    border: "none", borderRadius: "8px", padding: "0 12px",
+                                    cursor: newComment.trim() ? "pointer" : "not-allowed",
+                                    transition: "background 0.15s, color 0.15s"
+                                }}
+                            >
+                                <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <line x1="22" y1="2" x2="11" y2="13" />
+                                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                                </svg>
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
 

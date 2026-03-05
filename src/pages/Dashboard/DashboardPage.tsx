@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { useMapsStore } from "../../store/mapsStore";
 import type { Map } from "../../store/mapsStore";
 import { THUMBNAILS, TIER_COLORS, getTier } from "./MapThumbnails";
+import TemplateGallery from "../../components/dashboard/TemplateGallery";
 
 function relativeTime(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -394,6 +395,8 @@ export default function DashboardPage({ view = "all" }: { view?: ViewMode }) {
 
         {/* Content */}
         <div style={{ flex: 1, overflowY: "auto", padding: "28px" }}>
+
+          <TemplateGallery view={view} />
 
           {/* Heading + controls row */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px", gap: "16px", flexWrap: "wrap" }}>

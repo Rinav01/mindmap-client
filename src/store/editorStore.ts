@@ -50,6 +50,37 @@ export interface ActivityLogType {
     createdAt: string;
 }
 
+export interface NodeCommentType {
+    _id: string;
+    nodeId: string;
+    mapId: string;
+    content: string;
+    createdAt: string;
+    userId: {
+        _id: string;
+        name: string;
+        username?: string;
+        color: string;
+    };
+}
+
+export interface MapMemberType {
+    _id: string;
+    mindMapId: string;
+    userId: {
+        _id: string;
+        username: string;
+        email: string;
+        color: string;
+    };
+    role: "OWNER" | "EDITOR" | "VIEWER";
+    invitedBy?: {
+        _id: string;
+        username: string;
+    };
+    createdAt: string;
+}
+
 interface EditorState {
     nodes: NodeType[];
     selectedNodeIds: Set<string>;
@@ -65,6 +96,10 @@ interface EditorState {
     fontSize?: number;
     mapTitle: string;
     isLayoutAnimating: boolean;
+
+    focusNodeId: string | null;
+    setFocusNodeId: (nodeId: string | null) => void;
+    getFocusedSubtree: () => Set<string>;
 
     loadNodes: (mindMapId: string) => Promise<void>;
     setMapTitle: (mindMapId: string, title: string) => Promise<void>;
@@ -121,8 +156,10 @@ interface EditorState {
     clearRemoteNodeEditing: (nodeId: string) => void;
 
     remoteSelections: Record<string, { nodeIds: string[]; user: { name: string; color: string } }>;
-    setRemoteSelection: (userId: string, nodeIds: string[], user: { name: string; color: string }) => void;
+    setRemoteSelection: (userId: string, nodeIds: string[], user: { name: string, color: string }) => void;
     clearRemoteSelection: (userId: string) => void;
+
+    isLoadingMap: boolean;
 
     applyRemoteNodeCreated: (node: NodeType) => void;
     applyRemoteNodeUpdated: (id: string, updates: Partial<NodeType>) => void;
@@ -134,6 +171,17 @@ interface EditorState {
     activityLogs: ActivityLogType[];
     loadActivityLogs: (mindMapId: string) => Promise<void>;
     appendActivityLog: (log: ActivityLogType) => void;
+
+    mapMembers: MapMemberType[];
+    currentUserRole: "OWNER" | "EDITOR" | "VIEWER" | null;
+    loadMapMembers: (mindMapId: string) => Promise<void>;
+
+    comments: Record<string, NodeCommentType[]>;
+    loadComments: (mindMapId: string, nodeId: string) => Promise<void>;
+    addComment: (mindMapId: string, nodeId: string, content: string) => Promise<void>;
+    deleteComment: (mindMapId: string, nodeId: string, commentId: string) => Promise<void>;
+    applyRemoteCommentAdded: (nodeId: string, comment: NodeCommentType) => void;
+    applyRemoteCommentDeleted: (nodeId: string, commentId: string) => void;
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -149,6 +197,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     editingNodeId: null,
     mapTitle: "",
     isLayoutAnimating: false,
+    focusNodeId: null,
     versions: [],
     currentVersionId: null,
     liveCursors: {},
@@ -156,6 +205,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     remoteEditingNodes: {},
     remoteSelections: {},
     activityLogs: [],
+    mapMembers: [],
+    currentUserRole: null,
+    isLoadingMap: true,
+    comments: {},
 
     setRemoteSelection: (userId, nodeIds, user) => set((state) => ({
         remoteSelections: {
@@ -169,16 +222,51 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         return { remoteSelections: newSelections };
     }),
 
+    setFocusNodeId: (nodeId) => set({ focusNodeId: nodeId }),
+
+    getFocusedSubtree: () => {
+        const state = get();
+        if (!state.focusNodeId) return new Set();
+
+        const descendantIds = new Set<string>();
+        const queue = [state.focusNodeId];
+
+        // Build adjacency list for quick O(1) child lookups
+        const childrenMap = new Map<string, string[]>();
+        state.nodes.forEach(n => {
+            if (n.parentId) {
+                if (!childrenMap.has(n.parentId)) childrenMap.set(n.parentId, []);
+                childrenMap.get(n.parentId)!.push(n._id);
+            }
+        });
+
+        while (queue.length > 0) {
+            const currentId = queue.shift()!;
+            descendantIds.add(currentId);
+            const children = childrenMap.get(currentId);
+            if (children) {
+                queue.push(...children);
+            }
+        }
+        return descendantIds;
+    },
+
     loadNodes: async (mindMapId) => {
-        const [nodesRes, mapRes] = await Promise.all([
-            api.get(`/mindmaps/${mindMapId}/nodes`),
-            api.get(`/mindmaps/${mindMapId}`),
-        ]);
+        set({ isLoadingMap: true });
+        try {
+            const [nodesRes, mapRes] = await Promise.all([
+                api.get(`/mindmaps/${mindMapId}/nodes`),
+                api.get(`/mindmaps/${mindMapId}`),
+            ]);
 
-        const rawNodes = nodesRes.data || [];
-        const normalizedNodes: NodeType[] = rawNodes.map(normalizeNode);
+            const rawNodes = nodesRes.data || [];
+            const normalizedNodes: NodeType[] = rawNodes.map(normalizeNode);
 
-        set({ nodes: normalizedNodes, mapTitle: mapRes.data?.title ?? "" });
+            set({ nodes: normalizedNodes, mapTitle: mapRes.data?.title ?? "", isLoadingMap: false });
+        } catch (err) {
+            console.error("Failed to load map/nodes:", err);
+            set({ isLoadingMap: false });
+        }
     },
 
     loadActivityLogs: async (mindMapId) => {
@@ -188,6 +276,74 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         } catch (err) {
             console.error("Failed to load activity logs:", err);
         }
+    },
+
+    loadMapMembers: async (mindMapId) => {
+        try {
+            const res = await api.get(`/mindmaps/${mindMapId}/members`);
+            const members: MapMemberType[] = res.data || [];
+            const user = useAuthStore.getState().user;
+
+            // Derive current user's role
+            let role: "OWNER" | "EDITOR" | "VIEWER" | null = null;
+            if (user) {
+                const myMembership = members.find(m => m.userId._id === user._id);
+                if (myMembership) role = myMembership.role;
+            }
+
+            set({ mapMembers: members, currentUserRole: role });
+        } catch (err) {
+            console.error("Failed to load map members:", err);
+        }
+    },
+
+    loadComments: async (mindMapId, nodeId) => {
+        try {
+            const res = await api.get(`/mindmaps/${mindMapId}/nodes/${nodeId}/comments`);
+            set((state) => ({
+                comments: { ...state.comments, [nodeId]: res.data || [] }
+            }));
+        } catch (err) {
+            console.error("Failed to load comments:", err);
+        }
+    },
+
+    addComment: async (mindMapId, nodeId, content) => {
+        try {
+            const res = await api.post(`/mindmaps/${mindMapId}/nodes/${nodeId}/comments`, { content });
+            get().applyRemoteCommentAdded(nodeId, res.data);
+        } catch (err) {
+            console.error("Failed to post comment:", err);
+        }
+    },
+
+    deleteComment: async (mindMapId, nodeId, commentId) => {
+        try {
+            await api.delete(`/mindmaps/${mindMapId}/nodes/${nodeId}/comments/${commentId}`);
+            get().applyRemoteCommentDeleted(nodeId, commentId);
+        } catch (err) {
+            console.error("Failed to delete comment:", err);
+        }
+    },
+
+    applyRemoteCommentAdded: (nodeId, comment) => {
+        set((state) => {
+            const existing = state.comments[nodeId] || [];
+            // Basic deduplication in case of local creator
+            if (existing.some(c => c._id === comment._id)) return state;
+            return {
+                comments: { ...state.comments, [nodeId]: [...existing, comment] }
+            };
+        });
+    },
+
+    applyRemoteCommentDeleted: (nodeId, commentId) => {
+        set((state) => {
+            const existing = state.comments[nodeId] || [];
+            return {
+                comments: { ...state.comments, [nodeId]: existing.filter(c => c._id !== commentId) }
+            };
+        });
     },
 
     appendActivityLog: (log) => {

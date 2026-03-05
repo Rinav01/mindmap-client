@@ -1,190 +1,362 @@
 # 🧠 MindMap Pro — Collaborative Infinite Canvas Engine
 
-[![React](https://img.shields.io/badge/React-19.2-61DAFB?logo=react)](https://react.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript)](https://www.typescriptlang.org/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4.0-38B2AC?logo=tailwind-css)](https://tailwindcss.com/)
-[![Zustand](https://img.shields.io/badge/Zustand-5.0-orange)](https://zustand-demo.pmnd.rs/)
-[![Socket.io](https://img.shields.io/badge/Socket.io-4.8-black?logo=socket.io)](https://socket.io/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
+[![Vite](https://img.shields.io/badge/Vite-7-646CFF?style=flat-square&logo=vite)](https://vitejs.dev/)
+[![Zustand](https://img.shields.io/badge/Zustand-5-orange?style=flat-square)](https://zustand-demo.pmnd.rs/)
+[![Socket.io](https://img.shields.io/badge/Socket.io-4.8-black?style=flat-square&logo=socket.io)](https://socket.io/)
+[![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?style=flat-square&logo=mongodb)](https://www.mongodb.com/)
+[![Express](https://img.shields.io/badge/Express-4.x-000000?style=flat-square&logo=express)](https://expressjs.com/)
 
-MindMap Pro is a high-performance, professional-grade collaborative mind mapping application. It is engineered to handle complex node graphs with smooth 60fps interactions, real-time multi-user synchronization, and a custom motion engine.
+MindMap Pro is a professional-grade, real-time collaborative mind mapping application. It features a custom SVG infinite canvas engine, a FLIP-based motion system, multi-user WebSocket synchronization, role-based permissions, and a rich suite of productivity features.
 
 ---
 
 ## 📖 Table of Contents
-- [🚀 Key Features](#-key-features)
-- [🛠️ Editor Functionality](#️-editor-functionality)
+
+- [🚀 Features at a Glance](#-features-at-a-glance)
+- [🛠️ Editor](#️-editor)
 - [🤝 Real-Time Collaboration](#-real-time-collaboration)
-- [🏗️ Technical Architecture](#️-technical-architecture)
-- [🎬 Deep Dive: Motion Engine (FLIP)](#-deep-dive-motion-engine-flip)
-- [📐 Coordinate System & Transformation](#-coordinate-system--transformation)
-- [📦 State Management & Optimistic UI](#-state-management--optimistic-ui)
+- [👥 Sharing & Permissions](#-sharing--permissions)
+- [💬 Node Comments](#-node-comments)
+- [⏳ Version History & Activity](#-version-history--activity)
+- [🔍 Focus Mode](#-focus-mode)
+- [📦 Export System](#-export-system)
+- [🗂️ Templates](#️-templates)
+- [🏗️ Architecture](#️-architecture)
 - [📂 Project Structure](#-project-structure)
 - [🧰 Tech Stack](#-tech-stack)
-- [🧪 Development & Setup](#-development--setup)
-- [📜 Keyboard Shortcuts](#-keyboard-shortcuts)
+- [🚦 Getting Started](#-getting-started)
+- [⌨️ Keyboard Shortcuts](#️-keyboard-shortcuts)
 
 ---
 
-## 🚀 Key Features
+## 🚀 Features at a Glance
 
-### 🎨 Infinite Canvas & Rendering
-- **SVG-Based Rendering**: Leverages the browser's native SVG engine for declarative, scalable, and performant rendering of thousands of nodes and bezier connections.
-- **Mini-Map Navigator**: A real-time, high-fidelity visualization of the entire canvas. It allows users to jump to any location instantly by clicking or dragging on the navigator.
-- **Lasso Selection**: Support for area-based multi-node selection, enabling batch operations such as dragging, alignment, and deletion.
-- **Snapping & Alignment**: Integrated snapping guides for precise node positioning and professional alignment tools.
-
-### ⚡ Intelligence & Automation
-- **Recursive Auto-Layout**: A hierarchical tree arrangement algorithm that calculates depth-first subtree dimensions to optimize space and prevent node overlaps.
-- **Branch Collapse/Expand**: Intelligently toggles visibility of subtrees, automatically adjusting the rest of the map's layout to fill the void or make space.
-- **Fit to Screen**: Intelligent viewport calculation to center and scale the entire mind map within the visible area.
+| Category | Features |
+|---|---|
+| **Canvas** | SVG Infinite Canvas · Pan · Zoom · Mini Navigator · Lasso Selection |
+| **Nodes** | Rich properties · Color coding · Font size · Notes/descriptions · Collapse/expand |
+| **Layout** | Recursive Auto-Layout (FLIP animated) · Align · Distribute · Fit to Screen |
+| **Collaboration** | Live Cursors · Presence Avatars · Edit Locking · Remote Selection Highlights |
+| **Sharing** | Role-Based Permissions (Owner / Editor / Viewer) · Invite by Email · Share Link |
+| **Comments** | Threaded per-node discussion panels · Real-time via WebSocket |
+| **History** | Infinite Undo/Redo · Version Snapshots · Activity Log |
+| **Focus Mode** | Subtree Isolation with fade-out · Exit pill overlay |
+| **Exports** | PNG · PDF · JSON · Markdown |
+| **Templates** | Pre-built map blueprints (Startup, Project, Study, Brainstorm) |
+| **Auth** | JWT Authentication · Persistent sessions · Protected routes |
 
 ---
 
-## 🛠️ Editor Functionality
+## 🛠️ Editor
 
-### 📝 Node Management
-- **Rich Node Properties**: Each node supports titles, detailed notes, and attachments.
-- **Visual Customization**: Toggle between various professional background colors (Coral, Orange, Green, Blue, Purple) and adjust font sizes for hierarchical emphasis.
-- **Floating Toolbar**: Context-aware toolbar for quick actions like adding children/siblings, editing text, or deleting nodes.
-- **Advanced Alignment & Distribution**: Precise tools to align multiple nodes (Left, Center, Right, Top, Middle, Bottom) and distribute them evenly across horizontal or vertical axes.
+### Infinite Canvas
+The canvas is rendered entirely in **SVG**, giving the engine full control over transformations, animations, and event delegation while maintaining browser-native accessibility. A custom pan/zoom layer applies a `transform` matrix using `getScreenCTM().inverse()` to map screen coordinates into world coordinates, staying accurate at any zoom level (0.1x–3x).
 
-### 📜 History & Versions
-- **Infinite Undo/Redo**: Full history stack with animated transitions between states, allowing for seamless correction of mistakes.
-- **Version Snapshots**: Create manual "Time Machine" snapshots of your mind map. Restore previous versions with a single click, synchronized across all active collaborators.
-- **Activity Log**: A real-time audit trail of all changes made to the map, including who moved what, when text was edited, and color changes.
+### Node Management
+- **Create**: Click ⊕ on any node, press `Tab`, or use the floating toolbar to add children/siblings.
+- **Edit**: Double-click or press `Enter` to enter inline text editing mode.
+- **Rich Properties Panel**: A slide-in sidebar exposes title editing, multi-line notes, color palette, and font-size controls.
+- **Color Coding**: Six curated colors (Coral, Orange, Green, Blue, Purple, Teal) plus the default theme.
+- **Collapse/Expand**: Toggle visibility of entire subtrees with animated entrances/exits.
+
+### Auto-Layout & Alignment
+- **Recursive Auto-Layout**: A depth-first tree algorithm calculates subtree heights and assigns `x/y` positions to prevent any node overlap.
+- **FLIP Animation**: Uses the **Web Animations API** with a `cubic-bezier(0.2, 0.8, 0.2, 1)` easing to smoothly transition from the old layout to the new one without any perceived jank.
+- **Align Tools**: Align multiple selected nodes by Left, Center, Right, Top, Middle, or Bottom edge.
+- **Distribute Tools**: Evenly space selected nodes along horizontal or vertical axes.
+
+### Floating Toolbar
+A context-sensitive toolbar appears at the bottom center of the screen when nodes are selected. It provides:
+- Add sibling / child node
+- Edit text
+- **Focus (subtree isolation)**
+- Delete (with particle-burst animation)
+- Alignment & distribution tools (multi-select)
 
 ---
 
 ## 🤝 Real-Time Collaboration
 
-MindMap Pro is built for teams, featuring a low-latency synchronization protocol:
+All editor events are synchronized across clients via a Socket.io connection with a room per `mapId`.
 
-- **Live Cursors**: High-frequency (20Hz) synchronization of peer cursor positions with smooth interpolation and color-coded labels.
-- **Presence Awareness**: Real-time tracking of active users within a specific map, complete with user avatars and identity synchronization.
-- **Remote Editing Locks**: Visual "Locked" indicators and input disabling that prevent write conflicts by showing when a peer is actively editing a node's text or properties.
-- **Selection Visualization**: See what your teammates are focusing on with real-time remote selection highlights.
+### Live Cursors
+Mouse positions are broadcast at ~20 Hz and smoothed on each client using a **requestAnimationFrame lerp loop** (`currentPos += (targetPos - currentPos) × 0.25`), producing buttery 60fps cursor movement for all peers.
 
----
+### Presence Awareness
+- A **dynamic presence bar** in the editor header shows overlapping color-coded avatar circles (up to 5 visible, then `+N`).
+- Each user is assigned a unique color from a 16-color palette stored in their database profile.
 
-## 🏗️ Technical Architecture
+### Edit Locking
+When a user double-clicks a node to edit it:
+- All peers see a **colored glow border** and a **name badge** (e.g., "✏️ Alex editing").
+- The node is **soft-locked**: other users' double-clicks are silently blocked.
+- The lock is automatically released when editing finishes or is cancelled.
+- Works for both the canvas inline editor **and** the properties panel title/notes inputs.
 
-The application is built on a decoupled, multi-layered architecture:
-
-1. **Rendering Layer (SVG)**: The core UI layer. Unlike Canvas API, SVG allows for easy event delegation, CSS styling, and standard accessibility features.
-2. **Interaction Layer (Hooks)**: Managed by `useDragEngine`. This layer abstracts complex mouse and touch interactions (drags, pans, zooms) into atomic state changes.
-3. **Animation Layer (Motion Engine)**: A specialized engine that bridges the gap between React's declarative state and the browser's Imperative Web Animations API.
-4. **State Layer (Zustand)**: A centralized, atomic store that manages the graph structure, history stack, and real-time peer data.
-5. **Synchronization Layer (Socket.io)**: A bidirectional event bus that ensures all clients converge on the same state with minimal latency.
-
----
-
-## 🎬 Deep Dive: Motion Engine (FLIP)
-
-The `motionEngine.ts` is responsible for "Smoothing" the transitions when the graph structure changes (e.g., during Auto-Layout). It implements a refined version of the **FLIP** technique:
-
-1. **Capture (First)**: Before the state update, the engine records the viewport positions of all nodes using `getBoundingClientRect()` and converts them to **World Coordinates** using the SVG's inverse CTM (Current Transformation Matrix).
-2. **Commit (Last)**: React performs the state update (e.g., updating node `x` and `y` in the store). The DOM re-renders.
-3. **Invert (Invert)**: The engine calculates the delta (`dx`, `dy`) between the old world-space position and the new DOM position. It then applies a counter-transform to visually "lock" the nodes in their old positions.
-4. **Play (Play)**: Using the **Web Animations API**, the engine animates the `transform` from the delta back to `0, 0` using a custom `cubic-bezier(0.2, 0.8, 0.2, 1)` easing.
+### Selection Highlights
+A `selection-update` WebSocket event syncs each user's selected node IDs. Other users see a **dashed colored bounding box** around those nodes, with stacking name badges for simultaneous multi-user selection.
 
 ---
 
-## 📐 Coordinate System & Transformation
+## 👥 Sharing & Permissions
 
-Managing an infinite canvas requires mapping between different coordinate spaces:
+Maps support three roles enforced both on the backend and the frontend UI:
 
-- **Screen Space**: Pixel coordinates relative to the browser viewport (e.g., `e.clientX`).
-- **SVG Space (World Space)**: The absolute coordinate system of the mind map, independent of zoom or pan.
-- **Group Space**: Coordinates relative to a specific parent node or group.
+| Role | Capabilities |
+|---|---|
+| **Owner** | Full control — edit, invite, remove members, delete map |
+| **Editor** | Create, move, edit, delete nodes |
+| **Viewer** | Read-only — canvas is non-interactive |
 
-The application uses `getScreenCTM().inverse()` to map screen coordinates to world coordinates, ensuring that features like **Lasso Selection** and **Node Dragging** remain accurate regardless of zoom level (0.1x to 3x) or pan offset.
+### Share Modal
+- Owners open the Share modal from the editor header.
+- Invite collaborators by email and assign a role.
+- Dynamically update or revoke existing member roles.
+- Copy a shareable link to the clipboard.
+
+Viewer enforcement: The entire canvas UI (dragging, double-click, toolbar) is disabled for `VIEWER` role users via `currentUserRole` state.
 
 ---
 
-## 📦 State Management & Optimistic UI
+## 💬 Node Comments
 
-We use **Zustand** with custom middleware for history management:
+Every node supports a threaded comment panel, accessible from the Node Properties sidebar when exactly one node is selected.
 
-- **Optimistic Updates**: Local state is updated immediately for zero-latency feedback during drags or edits.
-- **Sync-Back**: The `EditorStore` asynchronously persists changes to the REST API and emits the corresponding socket event.
-- **Conflict Resolution**: In the event of a network failure, the store can roll back to the last "server-confirmed" state or use the `historyIndex` to restore consistency.
+- **Backend**: `NodeComment` collection stores `content`, `nodeId`, `mapId`, and a `userId` reference (populated with `username` and `color`).
+- **Real-time**: `comment-added` and `comment-deleted` WebSocket events sync comments live across all active users.
+- **Authorship**: Comments display the user's **name** and their **color-coded avatar**.
+- **Deletion**: Authors and map Owners can delete comments; others cannot.
+
+---
+
+## ⏳ Version History & Activity
+
+### Snapshots (Version History)
+- Create named snapshots of the entire node layout.
+- Each snapshot records **who** saved it (with avatar).
+- Restore any snapshot with one click — the restoration is broadcast via `map-restored` WebSocket event and animates smoothly for all clients.
+- Collaborators and Owners can both manage snapshots.
+
+### Activity Log
+A persistent right-side panel showing a timeline of major map events:
+- `NODE_CREATED`, `NODE_DELETED`, `NODE_EDITED`, `NODE_MOVED`, `NODE_COLOR_CHANGED`
+- Each entry shows the **user's name**, their **color-coded dot**, and a relative timestamp (e.g., "2m ago").
+- New events are streamed live via `activity-log-added` socket events.
+
+### Undo / Redo
+- Full in-memory history stack with `historyIndex` pointer.
+- Works for: node creation, deletion, text edits, moves, color changes, and notes.
+- Dirty-checking prevents storing duplicate states for no-op edits.
+
+---
+
+## 🔍 Focus Mode
+
+For navigating **large, complex mind maps**, Focus Mode lets you isolate any subtree:
+
+1. **Select a node** → click the **⊙ Focus** button in the floating toolbar.
+2. All nodes and edges **outside the selected subtree** fade to 15% opacity and become non-interactive (`pointer-events: none`).
+3. A **"Viewing Subtree · Exit Focus"** pill appears at the top-center of the canvas.
+4. Click **Exit Focus** or the button again to restore the full map.
+
+**Implementation**: A BFS traversal builds a `Set<string>` of all descendant node IDs. This is computed via `useMemo([nodes, focusNodeId])` to produce a stable reference and avoid React's `useSyncExternalStore` infinite loop trap. Both `NodeLayer` and `EdgeLayer` consume the set to independently derive `isFaded`.
+
+---
+
+## 📦 Export System
+
+Available via the **Export** dropdown in the editor header:
+
+| Format | How |
+|---|---|
+| **PNG** | `html-to-image` captures the `.react-flow` SVG viewport into a Data URI |
+| **PDF** | Same capture piped into a `jsPDF` document |
+| **JSON** | Backend endpoint `GET /api/mindmaps/:id/export/json` — full AST payload |
+| **Markdown** | Backend endpoint `GET /api/mindmaps/:id/export/md` — depth-mapped `# → ## → ###` hierarchy |
+
+---
+
+## 🗂️ Templates
+
+The **Template Gallery** appears on the Dashboard above your map list and provides 4 pre-built blueprints:
+
+- 🚀 **Startup Planning** — Funding, Market, Team, Product
+- 📋 **Project Breakdown** — Goals, Milestones, Resources, Risks
+- 📚 **Study Notes** — Topic outline with sub-sections
+- 💡 **Brainstorm** — Open-ended idea clustering
+
+Clicking a template card calls `POST /api/templates/from-template`, which:
+1. Allocates fresh MongoDB ObjectIDs for every node.
+2. Re-wires all parent-child relationships using an internal ID map.
+3. Creates a new `MindMap` document owned by the requesting user.
+4. Navigates directly into the new map's editor.
+
+The backend auto-seeds these 4 templates if the `templates` collection is empty on server start.
+
+---
+
+## 🏗️ Architecture
+
+### Frontend Layers
+
+```
+┌─────────────────────────────────────────┐
+│  React Pages  (Auth, Dashboard, Editor) │
+├─────────────────────────────────────────┤
+│  Zustand Stores  (EditorStore, AuthStore)│
+│  – graph state, history, presence, role │
+├─────────────────────────────────────────┤
+│  Motion Engine  (FLIP via Web Anim API) │
+│  Drag Engine   (rAF-based, no re-render)│
+├─────────────────────────────────────────┤
+│  SVG Render Layer                       │
+│  NodeLayer → Node.tsx                   │
+│  EdgeLayer → bezier paths               │
+│  CursorLayer → interpolated peers       │
+├─────────────────────────────────────────┤
+│  Services  (Axios REST · Socket.io WS)  │
+└─────────────────────────────────────────┘
+```
+
+### Drag-Without-Re-render
+The drag engine runs entirely outside of React's render cycle. It mutates the `transform` attribute on each `<g>` SVG element directly via a `ref`, then only writes final positions to the Zustand store on `mouseup`. This gives silky smooth dragging with zero React re-renders during the drag.
+
+### Optimistic UI
+Edits are applied to local state immediately and persisted to the REST API asynchronously. On network failure the store can roll back via the `historyIndex` pointer.
 
 ---
 
 ## 📂 Project Structure
 
-```text
+```
 src/
-├── app/              # Main App entry, Router definitions
-├── components/       # UI & Domain Components
-│   ├── editor/       # Core Canvas components (Canvas, Node, EdgeLayer)
-│   │   ├── FloatingToolbar.tsx   # Contextual action menu
-│   │   ├── NodeProperties.tsx    # Sidebar for node details
-│   │   ├── ActivityPanel.tsx     # Real-time audit log
-│   │   └── MiniNavigator.tsx     # Scaling-down canvas visualization
-│   ├── layout/       # Sidebar, Topbar, Dashboard Shell
-│   └── ui/           # Atomic components (Toast, Modals, Buttons)
-├── engine/           # Pure Logic: Motion Engine, Layout Algorithms
-├── hooks/            # Logic Hooks: useDragEngine (interaction logic)
-├── services/         # Infrastructure: API (Axios), Socket.io
-├── store/            # State: EditorStore (Nodes/History), AuthStore (User/JWT)
-└── types/            # Centralized TypeScript interfaces
+├── app/
+│   └── Router.tsx              # Route definitions + PrivateRoute guard
+├── components/
+│   ├── editor/
+│   │   ├── Canvas.tsx          # SVG viewport (pan, zoom, mouse events)
+│   │   ├── Node.tsx            # Individual node render + drag/click/edit
+│   │   ├── NodeLayer.tsx       # Recursive node tree renderer + Focus Mode
+│   │   ├── EdgeLayer.tsx       # Bezier connection paths + Focus Mode fade
+│   │   ├── CursorLayer.tsx     # Live peer cursor interpolation (rAF lerp)
+│   │   ├── FloatingToolbar.tsx # Bottom action bar (add/edit/focus/delete/align)
+│   │   ├── NodePropertiesPanel.tsx # Slide-in properties, notes, color, comments
+│   │   ├── EditorHeader.tsx    # Title, export menu, share, presence avatars
+│   │   ├── MiniNavigator.tsx   # Thumbnail overview + drag-to-jump navigation
+│   │   ├── VersionPanel.tsx    # Snapshot list + restore
+│   │   ├── ActivityPanel.tsx   # Timestamped real-time audit log
+│   │   ├── SkeletonEditor.tsx  # Loading skeleton (pulse animation)
+│   │   └── KeyboardShortcuts.tsx # Shortcut reference overlay
+│   ├── dashboard/
+│   │   ├── TemplateGallery.tsx # Browse and create from templates
+│   │   └── ShareModal.tsx      # Invite collaborators, manage roles
+│   └── ui/
+│       └── Toast.tsx           # Dismissible notifications with undo action
+├── context/
+│   └── DragContext.tsx         # Ref-based drag engine (no re-renders)
+├── engine/
+│   └── motionEngine.ts         # FLIP animation for layout transitions
+├── hooks/
+│   └── useDragEngine.ts        # Mouse/touch interaction abstraction
+├── pages/
+│   ├── Auth/                   # Login + Register pages (animated SVG background)
+│   ├── Dashboard/              # Map list, create, trash, share controls
+│   └── Editor/
+│       └── EditorPage.tsx      # Root editor: socket lifecycle, keyboard shortcuts
+├── services/
+│   ├── api.ts                  # Axios instance (baseURL + JWT interceptor)
+│   ├── socket.ts               # Socket.io client wrapper (connect/emit/off)
+│   ├── templateService.ts      # Template API calls
+│   └── mapService.ts           # Map CRUD API calls
+├── store/
+│   ├── editorStore.ts          # Main store: nodes, history, presence, focus
+│   └── authStore.ts            # User session, JWT, login/logout
+└── types/
+    └── user.ts                 # Shared TypeScript interfaces
 ```
 
 ---
 
 ## 🧰 Tech Stack
 
-- **Framework**: [React 19](https://react.dev/)
-- **Language**: [TypeScript 5.7+](https://www.typescriptlang.org/)
-- **Build Tool**: [Vite 7](https://vitejs.dev/)
-- **State**: [Zustand 5](https://github.com/pmndrs/zustand)
-- **Styling**: [Tailwind CSS v4](https://tailwindcss.com/)
-- **Real-Time**: [Socket.io-client 4.8](https://socket.io/)
-- **Animations**: [Web Animations API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Animations_API)
+### Frontend
+| Technology | Purpose |
+|---|---|
+| [React 19](https://react.dev/) | UI framework |
+| [TypeScript 5.7](https://www.typescriptlang.org/) | Type safety |
+| [Vite 7](https://vitejs.dev/) | Build tool & dev server |
+| [Zustand 5](https://github.com/pmndrs/zustand) | Global state management |
+| [React Router 7](https://reactrouter.com/) | Client-side routing |
+| [Socket.io-client](https://socket.io/) | Real-time WebSocket layer |
+| [Axios](https://axios-http.com/) | HTTP client |
+| [html-to-image](https://github.com/bubkoo/html-to-image) | PNG/PDF export |
+| [jsPDF](https://github.com/parallax/jsPDF) | PDF generation |
+| [Web Animations API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Animations_API) | FLIP layout animations |
+
+### Backend
+| Technology | Purpose |
+|---|---|
+| [Node.js + Express 4](https://expressjs.com/) | REST API server |
+| [Socket.io 4](https://socket.io/) | WebSocket server |
+| [MongoDB + Mongoose](https://mongoosejs.com/) | Database + ODM |
+| [JWT](https://jwt.io/) | Stateless authentication |
+| [bcryptjs](https://github.com/dcodeIO/bcrypt.js) | Password hashing |
 
 ---
 
-## 🧪 Development & Setup
+## 🚦 Getting Started
 
 ### Prerequisites
 - Node.js 20+
-- MindMap Pro Backend (running on port 5000)
+- A running instance of the [MindMap Pro Backend](https://github.com/your-username/mindmap-server)
 
-### Getting Started
-1. **Clone & Install**
-   ```bash
-   git clone https://github.com/your-username/mindmap-client.git
-   cd mindmap-client
-   npm install
-   ```
-2. **Configure Environment**
-   Create a `.env` file:
-   ```env
-   VITE_API_URL=http://localhost:5000/api
-   VITE_SOCKET_URL=http://localhost:5000
-   ```
-3. **Run Development Server**
-   ```bash
-   npm run dev
-   ```
+### 1. Clone & Install
+```bash
+git clone https://github.com/your-username/mindmap-client.git
+cd mindmap-client
+npm install
+```
+
+### 2. Configure Environment
+Create a `.env` file in the project root:
+```env
+VITE_API_URL=http://localhost:5000/api
+VITE_SOCKET_URL=http://localhost:5000
+```
+
+### 3. Run Development Server
+```bash
+npm run dev
+```
+
+The app will be available at `http://localhost:5173`.
+
+### 4. Build for Production
+```bash
+npm run build
+```
 
 ---
 
-## 📜 Keyboard Shortcuts
+## ⌨️ Keyboard Shortcuts
 
-| Category | Command | Key |
-| :--- | :--- | :--- |
-| **Navigation** | Pan Canvas | `Space + Drag` / `Middle Mouse` |
-| | Zoom In/Out | `Scroll Wheel` / `Ctrl + +/-` |
+| Category | Action | Shortcut |
+|---|---|---|
+| **Navigation** | Pan Canvas | `Space + Drag` or `Middle Mouse Drag` |
+| | Zoom In/Out | `Scroll Wheel` |
 | | Fit to Screen | `Ctrl + 0` |
-| **Editing** | Create Child | `Tab` |
-| | Delete Node | `Delete` / `Backspace` |
-| | Undo / Redo | `Ctrl + Z` / `Ctrl + Shift + Z` |
-| | Edit Text | `Double Click` / `Enter` |
+| **Editing** | Add Child Node | `Tab` |
+| | Edit Selected Node | `Enter` or `Double Click` |
+| | Delete Node(s) | `Delete` or `Backspace` |
+| | Undo | `Ctrl + Z` |
+| | Redo | `Ctrl + Y` |
+| | Deselect All | `Escape` |
 | **Layout** | Auto-Layout | `Ctrl + L` |
 
 ---
 
 ## 📜 License
-This project is licensed under the MIT License.
+
+This project is licensed under the **MIT License**. See [LICENSE](LICENSE) for details.
