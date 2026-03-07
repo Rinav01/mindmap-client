@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useEditorStore } from "../../store/editorStore";
 import ShareModal from "./ShareModal";
+import AiGenerateModal from "./AiGenerateModal";
 import { exportMapJson, exportMapMarkdown, exportMapPng, exportMapPdf } from "../../services/exportService";
 
 const iconBtn = (active = false, disabled = false) => ({
@@ -46,6 +47,7 @@ export default function EditorHeader({ onAddNode, onToggleHistory, isHistoryOpen
     const [titleDraft, setTitleDraft] = useState("");
     const [isShareModalOpen, setIsShareModalOpen] = useState(false);
     const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+    const [isAiModalOpen, setIsAiModalOpen] = useState(false);
 
     const handleTitleClick = () => {
         if (isViewer) return;
@@ -370,8 +372,42 @@ export default function EditorHeader({ onAddNode, onToggleHistory, isHistoryOpen
                 Share
             </button>
 
+            {/* AI Generate Button */}
+            {!isViewer && (
+                <button
+                    onClick={() => setIsAiModalOpen(true)}
+                    title="Generate mindmap with AI"
+                    style={{
+                        display: "flex", alignItems: "center", gap: "6px",
+                        background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                        border: "none", borderRadius: "8px",
+                        padding: "6px 12px", cursor: "pointer",
+                        color: "white", fontSize: "12px", fontWeight: 600,
+                        fontFamily: "Inter, sans-serif", flexShrink: 0,
+                        boxShadow: "0 0 12px rgba(99,102,241,0.4)",
+                        transition: "box-shadow 0.2s, transform 0.15s",
+                    }}
+                    onMouseEnter={e => {
+                        e.currentTarget.style.boxShadow = "0 0 20px rgba(99,102,241,0.7)";
+                        e.currentTarget.style.transform = "scale(1.04)";
+                    }}
+                    onMouseLeave={e => {
+                        e.currentTarget.style.boxShadow = "0 0 12px rgba(99,102,241,0.4)";
+                        e.currentTarget.style.transform = "scale(1)";
+                    }}
+                >
+                    <svg width="13" height="13" fill="none" stroke="white" strokeWidth="2.2" viewBox="0 0 24 24">
+                        <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
+                    </svg>
+                    AI Generate
+                </button>
+            )}
+
             {/* Share Modal */}
             <ShareModal isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} />
+
+            {/* AI Generate Modal */}
+            {isAiModalOpen && <AiGenerateModal onClose={() => setIsAiModalOpen(false)} />}
 
             {/* Live Presence Avatars */}
             <PresenceAvatars />

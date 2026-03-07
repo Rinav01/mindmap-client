@@ -101,6 +101,9 @@ interface EditorState {
     setFocusNodeId: (nodeId: string | null) => void;
     getFocusedSubtree: () => Set<string>;
 
+    appendNodes: (nodes: NodeType[]) => void;
+    replaceNodes: (mindMapId: string) => Promise<void>;
+
     loadNodes: (mindMapId: string) => Promise<void>;
     setMapTitle: (mindMapId: string, title: string) => Promise<void>;
     selectNode: (id: string, multi?: boolean) => void;
@@ -249,6 +252,46 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             }
         }
         return descendantIds;
+    },
+
+    appendNodes: (newNodes) => set((state) => ({
+        nodes: [
+            ...state.nodes,
+            ...newNodes.map(n => ({
+                _id: String(n._id),
+                text: n.text,
+                notes: n.notes ?? "",
+                x: n.x,
+                y: n.y,
+                parentId: n.parentId ? String(n.parentId) : null,
+                color: n.color ?? undefined,
+                fontSize: n.fontSize ?? undefined,
+                collapsed: false,
+            }))
+        ]
+    })),
+
+    // Silent reload — does NOT set isLoadingMap so the Canvas never unmounts.
+    // Use this after AI generation to swap nodes without breaking DragContext refs.
+    replaceNodes: async (mindMapId) => {
+        try {
+            const res = await api.get(`/mindmaps/${mindMapId}/nodes`);
+            const raw = res.data || [];
+            const normalized: NodeType[] = raw.map((n: Record<string, unknown>) => ({
+                _id: String(n._id),
+                text: String(n.text ?? ""),
+                notes: String(n.notes ?? ""),
+                x: Number(n.x ?? 0),
+                y: Number(n.y ?? 0),
+                parentId: n.parentId ? String(n.parentId) : null,
+                color: n.color ? String(n.color) : undefined,
+                fontSize: n.fontSize ? Number(n.fontSize) : undefined,
+                collapsed: false,
+            }));
+            set({ nodes: normalized, selectedNodeIds: new Set() });
+        } catch (err) {
+            console.error("[replaceNodes] Failed to reload nodes silently:", err);
+        }
     },
 
     loadNodes: async (mindMapId) => {
