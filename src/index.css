@@ -1,6 +1,12 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
+html, body {
+  overflow-x: hidden;
+  margin: 0;
+  padding: 0;
+}
+
 
 @theme {
   --color-primary: #2b8cee;

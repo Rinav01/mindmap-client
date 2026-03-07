@@ -1,5 +1,5 @@
 import { io, Socket } from "socket.io-client";
-import type { NodeType } from "../store/editorStore";
+import type { NodeType } from "../types/mindmap";
 
 // Get base URL for socket, defaulting to localhost for dev if not provided
 const SOCKET_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";

@@ -1,15 +1,115 @@
-* {
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+/* ─── Reset ──────────────────────────────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+}
+
+html {
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: scroll;
+  /* single scroll container — keeps scrollbar gutter stable */
 }
 
 body {
   font-family: Inter, system-ui, sans-serif;
   background-color: #0f172a;
   color: #ffffff;
+  overflow: hidden;
+  /* body must NOT independently scroll */
+  min-height: 100%;
 }
 
+/* ─── Design tokens ──────────────────────────────────────────────────────────── */
+
+@theme {
+  --color-primary: #2b8cee;
+  --color-background-dark: #101922;
+  --color-surface: #1a2530;
+  --color-border: #2d3a4b;
+}
+
+/* ─── Canvas grid ────────────────────────────────────────────────────────────── */
+
+.canvas-grid {
+  background-size: 40px 40px;
+  background-image: radial-gradient(circle, #2b8cee33 1px, transparent 1px);
+}
+
+/* ─── Animations ─────────────────────────────────────────────────────────────── */
+
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.25s ease-out;
+}
+
+@keyframes node-pop {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+
+  70% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-node-pop {
+  animation: node-pop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  transform-origin: center;
+}
+
+/* ─── Node & edge transitions ────────────────────────────────────────────────── */
+
+.node-group {
+  transition: transform 0.3s cubic-bezier(0.2, 1, 0.3, 1);
+}
+
+.node-group.dragging {
+  transition: none !important;
+}
+
+.node-rect {
+  transition: stroke 0.2s ease, stroke-width 0.2s ease, filter 0.2s ease, fill 0.2s ease;
+}
+
+.drop-target {
+  stroke: #3b82f6 !important;
+  stroke-width: 2.5 !important;
+  filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.6)) !important;
+}
+
+.edge-path {
+  transition: d 0.3s cubic-bezier(0.2, 1, 0.3, 1), stroke 0.2s ease, stroke-width 0.2s ease;
+}
+
+.edge-path.dragging {
+  transition: none !important;
+}
+
+/* ─── App layout (dashboard sidebar layout) ──────────────────────────────────── */
 
 .app-layout {
   display: flex;

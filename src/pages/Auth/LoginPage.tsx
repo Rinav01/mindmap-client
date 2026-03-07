@@ -29,7 +29,7 @@ export default function LoginPage() {
         try {
             const { token, user } = await authService.login({ email: email.trim(), password: password.trim() });
             login(token, user);
-            navigate("/");
+            navigate("/dashboard");
         } catch (err: any) {
             setError(err.response?.data?.message || "Invalid credentials.");
         } finally {

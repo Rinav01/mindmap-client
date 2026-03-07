@@ -3,7 +3,7 @@
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
 [![Vite](https://img.shields.io/badge/Vite-7-646CFF?style=flat-square&logo=vite)](https://vitejs.dev/)
-[![Zustand](https://img.shields.io/badge/Zustand-5-orange?style=flat-square)](https://zustand-demo.pmnd.rs/)\
+[![Zustand](https://img.shields.io/badge/Zustand-5-orange?style=flat-square)](https://zustand-demo.pmnd.rs/)
 [![Socket.io](https://img.shields.io/badge/Socket.io-4.8-black?style=flat-square&logo=socket.io)](https://socket.io/)
 [![Groq](https://img.shields.io/badge/Groq-Llama_3_70B-F55036?style=flat-square)](https://groq.com/)
 
@@ -70,7 +70,7 @@ Rendered entirely in **SVG** for full control over transformations, animations, 
 
 ### Floating Toolbar
 Context-sensitive bottom action bar when nodes are selected:
-- Add sibling / child node · Edit text · **✨ Focus on subtree** · Delete · Align / Distribute
+- Add sibling / child node · Edit text · **⊙ Focus on subtree** · Delete · Align / Distribute
 
 ---
 
@@ -85,8 +85,11 @@ Click the glowing **✨ AI Generate** button in the editor header toolbar to gen
 4. All existing nodes in the map are replaced with the new AI-generated tree.
 5. The frontend silently reloads the node state **without unmounting the Canvas**, so all drag refs and edge connections stay intact.
 
-### Implementation detail — `replaceNodes`
-A dedicated `replaceNodes(mindMapId)` store action fetches fresh nodes from the API and patches the store **without setting `isLoadingMap: true`**. This prevents the Canvas from unmounting (which would break the DragContext edge ref map and cause disconnected edges). This is distinct from `loadNodes`, which shows the skeleton loader and is intended for initial page load only.
+### `replaceNodes` vs `loadNodes`
+| Action | Sets `isLoadingMap` | Canvas unmounts | Use case |
+|---|:---:|:---:|---|
+| `loadNodes` | ✅ Yes | ✅ Yes | Initial page load |
+| `replaceNodes` | ❌ No | ❌ No | AI generation, silent refresh |
 
 ---
 
@@ -94,18 +97,30 @@ A dedicated `replaceNodes(mindMapId)` store action fetches fresh nodes from the 
 
 All editor events are synchronized via Socket.io with a room per `mapId`.
 
+### WebSocket Event Map
+
+| Event (client → server) | Event (server → client) | Payload |
+|---|---|---|
+| `cursor-move` | `cursor-moved` | `{ x, y, name, color }` |
+| `node-editing` | `node-editing-started` | `{ nodeId, user }` |
+| `node-editing-stopped` | `node-editing-stopped` | `{ nodeId }` |
+| `selection-update` | `selection-updated` | `{ nodeIds, user }` |
+| `node-added` | `node-added` | `NodeType` |
+| `node-updated` | `node-updated` | `{ id, updates }` |
+| `nodes-updated` | `nodes-updated` | `{ id, x, y }[]` |
+| `node-deleted` | `node-deleted` | `{ nodeId }` |
+| `nodes-deleted` | `nodes-deleted` | `{ nodeIds }` |
+| `map-restored` | `map-restored` | `{ nodes, versionId }` |
+| `map-versions-changed` | `map-versions-changed` | — |
+
 ### Live Cursors
 Mouse positions broadcast at ~20 Hz, smoothed on each client using a **requestAnimationFrame lerp loop** (`ease = 0.25`), producing buttery 60fps cursor movement for all peers.
-
-### Presence Awareness
-A dynamic presence bar in the editor header shows overlapping color-coded avatar circles. Each user is assigned a unique color from a 16-color palette stored in their database profile.
 
 ### Edit Locking
 When a user edits a node:
 - Peers see a colored glow border and a name badge (e.g., "✏️ Alex editing").
 - The node is soft-locked — other users' double-clicks are silently blocked.
 - Lock auto-releases when editing finishes or is cancelled.
-- Works for both the canvas inline editor and the properties panel fields.
 
 ### Selection Highlights
 `selection-update` WebSocket events sync selected node IDs. Other users see a dashed colored bounding box with stacking name badges.
@@ -122,7 +137,7 @@ Maps support three roles enforced at both the API and UI levels:
 | **Editor** | Create, move, edit, delete nodes |
 | **Viewer** | Read-only — canvas is non-interactive |
 
-The **Share** modal (editor header) lets owners invite by email, update roles, revoke access, and copy a shareable link. Viewer enforcement disables all interactive canvas elements via `currentUserRole` state.
+The **Share** modal (editor header) lets owners invite by email, update roles, revoke access, and copy a shareable link. Viewer enforcement disables all interactive canvas elements via `currentUserRole` state from `activitySlice`.
 
 ---
 
@@ -143,7 +158,15 @@ Every node supports a threaded comment panel in the Node Properties sidebar.
 - Restore any snapshot — broadcast via `map-restored` to all live collaborators.
 
 ### Activity Log
-Right-side panel showing a timeline of `NODE_CREATED`, `NODE_DELETED`, `NODE_EDITED`, `NODE_MOVED`, `NODE_COLOR_CHANGED` with user avatar, relative timestamp, and contextual metadata.
+Right-side panel showing a timeline of events with user avatar, relative timestamp, and contextual metadata:
+
+| Event Type | Description |
+|---|---|
+| `NODE_CREATED` | A new node was added |
+| `NODE_DELETED` | A node was removed |
+| `NODE_EDITED` | Node text was changed |
+| `NODE_MOVED` | Node dragged to a new position |
+| `NODE_COLOR_CHANGED` | Node color was updated |
 
 ### Undo / Redo
 Full in-memory history stack — covers node creation, deletion, text edits, moves, color changes, and notes. `Ctrl+Z` / `Ctrl+Y`.
@@ -185,41 +208,97 @@ A **Template Gallery** on the Dashboard lets users start from 4 pre-built bluepr
 - 📚 **Study Notes** — Topic outline with sub-sections
 - 💡 **Brainstorm** — Open-ended idea clustering
 
-Selecting a template calls `POST /api/templates/from-template`, which re-allocates fresh MongoDB ObjectIDs, rewires all parent-child relationships, creates the map, and navigates directly into the editor.
-
 ---
 
 ## 🏗️ Architecture
 
-### Frontend Layers
+### Frontend Layer Diagram
 
 ```
-┌────────────────────────────────────────────────┐
-│  React Pages  (Auth, Dashboard, Editor)         │
-├────────────────────────────────────────────────┤
-│  Zustand Stores  (EditorStore, AuthStore)       │
-│  – graph, history, presence, focus, AI nodes   │
-├────────────────────────────────────────────────┤
-│  Motion Engine  (FLIP via Web Animations API)  │
-│  Drag Engine   (rAF-based — zero re-renders)   │
-├────────────────────────────────────────────────┤
-│  SVG Canvas                                    │
-│  NodeLayer → Node.tsx  (isFaded, isFocused)    │
-│  EdgeLayer → Bezier paths (isFaded)            │
-│  CursorLayer → rAF-interpolated peer cursors   │
-├────────────────────────────────────────────────┤
-│  Services  (Axios REST · Socket.io WS)         │
-└────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│  React Pages  (Auth · Dashboard · Editor)                        │
+├──────────────────────────────────────────────────────────────────┤
+│  src/types/mindmap.ts  ←  Single source of truth for all types   │
+├──────────────────────────────────────────────────────────────────┤
+│  Zustand Store  useEditorStore (thin orchestrator)               │
+│    ├── canvasSlice   zoom · pan · history · selection            │
+│    ├── nodeSlice     CRUD · drag · layout · normalizeNode        │
+│    ├── collabSlice   cursors · presence · remote edits           │
+│    ├── versionSlice  snapshots · restore                         │
+│    ├── commentSlice  comments CRUD + remote apply                │
+│    └── activitySlice activity log · members · role               │
+│  authStore  — JWT session                                        │
+├──────────────────────────────────────────────────────────────────┤
+│  Motion Engine  (FLIP via Web Animations API)                    │
+│  Drag Engine   (rAF-based — zero re-renders)                     │
+├──────────────────────────────────────────────────────────────────┤
+│  SVG Canvas                                                      │
+│    NodeLayer  →  Node.tsx  (isFaded · isFocused)                 │
+│    EdgeLayer  →  Bezier paths  (isFaded)                         │
+│    CursorLayer →  rAF-interpolated peer cursors                  │
+├──────────────────────────────────────────────────────────────────┤
+│  Services                                                        │
+│    api.ts (Axios + JWT interceptor + VITE_API_URL)               │
+│    socket.ts (Socket.io — imports types from types/mindmap)      │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### Store Slice Dependency Graph
+
+```mermaid
+graph TD
+    ES["useEditorStore\n(editorStore.ts)"]
+
+    ES --> CS["canvasSlice\nzoom · pan · selection\nundo/redo · history"]
+    ES --> NS["nodeSlice\nCRUD · drag commit\nauto-layout · align"]
+    ES --> CoS["collabSlice\nlive cursors\nonline presence"]
+    ES --> VS["versionSlice\nsnapshots · restore"]
+    ES --> CmS["commentSlice\nnode comments"]
+    ES --> AS["activitySlice\nlogs · members · role"]
+
+    NS --> MT["src/types/mindmap.ts\nNodeType · LiveCursor\nMindMapVersion etc."]
+    CoS --> MT
+    VS --> MT
+    CmS --> MT
+    AS --> MT
+
+    NS --> UI["src/utils/userInfo.ts\ngetCurrentUserInfo()"]
+    CS --> UI
+
+    NS --> ME["engine/motionEngine.ts\nperformAnimatedLayoutChange"]
+    CS --> ME
+    VS --> ME
+
+    NS --> SK["services/socket.ts\nWebSocket emitters"]
+    CS --> SK
+    VS --> SK
+```
+
+### Data Flow — Node Drag
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant DragEngine as useDragEngine\n(rAF loop)
+    participant DOM as SVG DOM
+    participant Store as nodeSlice
+    participant API
+    participant Socket
+
+    User->>DragEngine: mousedown on node
+    loop Every animation frame
+        DragEngine->>DOM: mutate transform attr directly
+    end
+    User->>DragEngine: mouseup
+    DragEngine->>Store: commitDragEnd(id, x, y)
+    Store->>Store: update nodes[]
+    Store->>API: PATCH /mindmaps/nodes/:id
+    Store->>Socket: emitNodeDragged(id, x, y)
+    Socket-->>User: node-updated event (peers)
 ```
 
 ### Drag-Without-Re-render
 The drag engine mutates the SVG `transform` attribute directly via a `ref`, bypassing React entirely during drag. Only on `mouseup` are final positions written to the Zustand store and persisted via API.
-
-### `replaceNodes` vs `loadNodes`
-| Action | Sets `isLoadingMap` | Canvas unmounts | Use case |
-|---|:---:|:---:|---|
-| `loadNodes` | ✅ Yes | ✅ Yes | Initial page load |
-| `replaceNodes` | ❌ No | ❌ No | AI generation, silent refresh |
 
 ---
 
@@ -228,9 +307,33 @@ The drag engine mutates the SVG `transform` attribute directly via a `ref`, bypa
 ```
 src/
 ├── app/
-│   └── Router.tsx                  # Route definitions + PrivateRoute guard
+│   ├── App.tsx                     # Root: imports global.css, initializes authStore
+│   └── routes.tsx                  # Route definitions + PrivateRoute guard
+│
+├── types/
+│   ├── mindmap.ts                  # ★ All domain types: NodeType, LiveCursor, etc.
+│   └── user.ts                     # User type for auth
+│
+├── store/
+│   ├── editorStore.ts              # ★ Thin orchestrator — composes all slices (45 lines)
+│   ├── authStore.ts                # User session, JWT, login/logout
+│   └── slices/
+│       ├── index.ts                # SliceCreator<T> helper type
+│       ├── canvasSlice.ts          # Viewport: zoom, pan, history, selection, editing
+│       ├── nodeSlice.ts            # Node CRUD, drag, layout, normalizeNode()
+│       ├── collabSlice.ts          # Live cursors, presence, remote edits/selections
+│       ├── versionSlice.ts         # Snapshots, restore, version delete
+│       ├── commentSlice.ts         # Node comments (load, add, delete, remote apply)
+│       └── activitySlice.ts        # Activity log, map members, currentUserRole
+│
+├── utils/
+│   └── userInfo.ts                 # ★ getCurrentUserInfo() — shared auth user helper
+│
 ├── components/
 │   ├── editor/
+│   │   ├── EditorHeader.tsx        # ★ Refactored: 485 → 210 lines (uses sub-components)
+│   │   ├── ExportMenu.tsx          # ★ NEW: Export dropdown (PNG/PDF/JSON/Markdown)
+│   │   ├── PresenceAvatars.tsx     # ★ NEW: Online user avatar row
 │   │   ├── Canvas.tsx              # SVG viewport — pan, zoom, mouse events
 │   │   ├── Node.tsx                # Individual node render + drag/click/edit
 │   │   ├── NodeLayer.tsx           # Recursive renderer + Focus Mode isFaded
@@ -238,7 +341,6 @@ src/
 │   │   ├── CursorLayer.tsx         # Live peer cursors with rAF lerp
 │   │   ├── FloatingToolbar.tsx     # Bottom action bar (add/focus/align/delete)
 │   │   ├── NodePropertiesPanel.tsx # Slide-in properties, notes, color, comments
-│   │   ├── EditorHeader.tsx        # Title, Export, Share, ✨ AI Generate, Presence
 │   │   ├── AiGenerateModal.tsx     # AI topic input modal + Groq API integration
 │   │   ├── MiniNavigator.tsx       # Thumbnail overview + drag-to-jump
 │   │   ├── VersionPanel.tsx        # Snapshot list + restore
@@ -250,27 +352,34 @@ src/
 │   │   └── TemplateGallery.tsx     # Browse and create from templates
 │   └── ui/
 │       └── Toast.tsx               # Dismissible notifications with undo action
+│
 ├── context/
 │   └── DragContext.tsx             # Ref-based drag engine context
+│
 ├── engine/
 │   └── motionEngine.ts             # FLIP animation (capturePositions + animateTransitions)
+│
 ├── hooks/
-│   └── useDragEngine.ts            # Mouse/touch interaction abstraction
+│   └── useDragEngine.ts            # Mouse/touch interaction abstraction (rAF-based)
+│
 ├── pages/
 │   ├── Auth/                       # Login + Register (animated SVG background)
 │   ├── Dashboard/                  # Map list, create, trash, templates
 │   └── Editor/
 │       └── EditorPage.tsx          # Root editor: socket lifecycle, keyboard shortcuts
+│
 ├── services/
-│   ├── api.ts                      # Axios instance (baseURL + JWT interceptor)
-│   ├── socket.ts                   # Socket.io client wrapper
+│   ├── api.ts                      # ★ Axios instance (reads VITE_API_URL + JWT interceptor)
+│   ├── socket.ts                   # ★ Socket.io client (imports types from types/mindmap)
 │   ├── aiService.ts                # POST /api/ai/generate-mindmap
 │   ├── exportService.ts            # PNG, PDF, JSON, Markdown export helpers
 │   └── templateService.ts          # Template API calls
-└── store/
-    ├── editorStore.ts              # Main store: nodes, history, presence, focus, replaceNodes
-    └── authStore.ts                # User session, JWT, login/logout
+│
+└── styles/
+    └── global.css                  # ★ Single CSS entry point — Tailwind + tokens + animations
 ```
+
+> **★** = modified or newly created in the latest refactor pass.
 
 ---
 
@@ -282,10 +391,11 @@ src/
 | [React 19](https://react.dev/) | UI framework |
 | [TypeScript 5.7](https://www.typescriptlang.org/) | Type safety |
 | [Vite 7](https://vitejs.dev/) | Build tool & dev server |
-| [Zustand 5](https://github.com/pmndrs/zustand) | Global state management |
+| [Zustand 5](https://github.com/pmndrs/zustand) | Global state — slice pattern |
 | [React Router 7](https://reactrouter.com/) | Client-side routing |
 | [Socket.io-client](https://socket.io/) | Real-time WebSocket layer |
 | [Axios](https://axios-http.com/) | HTTP client with JWT interceptor |
+| [Framer Motion](https://www.framer.com/motion/) | Landing page scroll animations |
 | [html-to-image](https://github.com/bubkoo/html-to-image) | PNG/PDF export |
 | [jsPDF](https://github.com/parallax/jsPDF) | PDF generation |
 | [Web Animations API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Animations_API) | FLIP layout animations |
@@ -316,14 +426,17 @@ npm install
 ### 2. Configure Environment
 Create a `.env` file:
 ```env
-VITE_API_URL=http://localhost:5000/api
+VITE_API_URL=http://localhost:5000
 VITE_SOCKET_URL=http://localhost:5000
 ```
+
+> **Note:** `VITE_API_URL` is used by both `api.ts` (appends `/api`) and `socket.ts`. Set it to the base backend URL — no trailing slash, no `/api` suffix.
 
 ### 3. Run
 ```bash
 npm run dev       # Development server → http://localhost:5173
 npm run build     # Production build
+npm run preview   # Preview production build locally
 ```
 
 ---
@@ -333,7 +446,7 @@ npm run build     # Production build
 | Category | Action | Shortcut |
 |---|---|---|
 | **Navigation** | Pan Canvas | `Space + Drag` or `Middle Mouse Drag` |
-| | Zoom | `Scroll Wheel` |
+| | Zoom in / out | `Scroll Wheel` |
 | | Fit to Screen | `Ctrl + 0` |
 | **Editing** | Add Child Node | `Tab` |
 | | Edit Selected | `Enter` or `Double Click` |
@@ -342,6 +455,22 @@ npm run build     # Production build
 | | Redo | `Ctrl + Y` |
 | | Deselect All | `Escape` |
 | **Layout** | Auto-Layout | `Ctrl + L` |
+
+---
+
+## 🔄 Refactor Highlights (March 2026)
+
+A major legibility and maintainability pass was completed across the codebase:
+
+| Area | Before | After |
+|---|---|---|
+| `editorStore.ts` | 1149 lines — all concerns mixed | 45 lines — thin slice orchestrator |
+| `types/mindmap.ts` | Empty | All domain interfaces (6 types) |
+| `EditorHeader.tsx` | 485 lines — 4 concerns mixed | 210 lines + `ExportMenu.tsx` + `PresenceAvatars.tsx` |
+| CSS entry point | 2 conflicting files (`index.css` + `global.css`) | 1 merged `styles/global.css` |
+| `api.ts` baseURL | Hardcoded `localhost:5000` | Reads `VITE_API_URL` env var |
+| Repeated user-info pattern | Copy-pasted 5× in the store | `utils/userInfo.ts` helper |
+| socket.ts type import | `from "../store/editorStore"` (circular) | `from "../types/mindmap"` |
 
 ---
 
