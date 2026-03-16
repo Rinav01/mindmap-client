@@ -1,4 +1,5 @@
 # Logs
+.env
 logs
 *.log
 npm-debug.log*
@@ -11,12 +12,16 @@ node_modules
 dist
 dist-ssr
 *.local
+.env.*
 eslint.config.js
 fix-encoding.cjs
+fix-encoding.js
 fix-lines.cjs
 lint_output_utf8.txt
 lint_output.txt
 tsc-errors.txt
+tsc-out.txt
+tsc-output.txt
 
 # Editor directories and files
 .vscode/*
