@@ -11,6 +11,8 @@ interface AuthState {
     login: (token: string, user: User) => void;
     logout: () => void;
     checkAuth: () => Promise<void>;
+    completeOnboarding: () => Promise<void>;
+    completeAdvancedTutorial: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -45,6 +47,28 @@ export const useAuthStore = create<AuthState>()(
                     // Token is invalid or expired
                     console.error("Auth check failed:", error);
                     set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+                }
+            },
+
+            completeOnboarding: async () => {
+                const { user } = get();
+                if (!user) return;
+                try {
+                    await authService.completeOnboarding();
+                    set({ user: { ...user, hasCompletedOnboarding: true } });
+                } catch (error) {
+                    console.error("Failed to mark onboarding as complete:", error);
+                }
+            },
+
+            completeAdvancedTutorial: async () => {
+                const { user } = get();
+                if (!user) return;
+                try {
+                    await authService.completeAdvancedTutorial();
+                    set({ user: { ...user, hasCompletedAdvancedTutorial: true } });
+                } catch (error) {
+                    console.error("Failed to mark advanced tutorial as complete:", error);
                 }
             },
         }),

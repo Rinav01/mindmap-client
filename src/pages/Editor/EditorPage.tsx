@@ -14,7 +14,10 @@ import VersionPanel from "../../components/editor/VersionPanel";
 import ActivityPanel from "../../components/editor/ActivityPanel";
 import { socketService } from "../../services/socket";
 import type { NodeType, LiveCursor, NodeCommentType } from "../../store/editorStore";
+import { CLIENT_ID } from "../../store/operationDispatcher";
 import SkeletonEditor from "../../components/editor/SkeletonEditor";
+import OnboardingTour from "../../components/editor/OnboardingTour";
+import AdvancedFeatureHighlight from "../../components/editor/AdvancedFeatureHighlight";
 
 interface ToastState {
   message: string;
@@ -57,17 +60,30 @@ export default function EditorPage() {
       } : undefined;
       socketService.connect(id, userInfo);
 
+      // Subscribe to local node changes and backup immediately to IndexedDB
+      const unsubscribeNodes = useEditorStore.subscribe(
+        (state, prevState) => {
+          if (state.nodes !== prevState.nodes && state.nodes.length > 0) {
+            import('../../store/indexedDb').then(m => m.dbOptions.saveLocalMapState(id, state.nodes));
+          }
+        }
+      );
+
       // --- Node event handlers ---
-      const handleNodeAdded = (node: NodeType) => {
+      const handleNodeAdded = (node: NodeType, senderClientId?: string) => {
+        if (senderClientId === CLIENT_ID) return;
         useEditorStore.getState().applyRemoteNodeCreated(node);
       };
-      const handleNodeDragged = (data: { nodeId: string, position: { x: number, y: number } }) => {
+      const handleNodeDragged = (data: { nodeId: string, position: { x: number, y: number } }, senderClientId?: string) => {
+        if (senderClientId === CLIENT_ID) return;
         useEditorStore.getState().applyRemoteNodeUpdated(data.nodeId, data.position);
       };
-      const handleNodeUpdated = (node: NodeType) => {
+      const handleNodeUpdated = (node: NodeType, senderClientId?: string) => {
+        if (senderClientId === CLIENT_ID) return;
         useEditorStore.getState().applyRemoteNodeUpdated(node._id, node);
       };
-      const handleNodeDeleted = (nodeId: string) => {
+      const handleNodeDeleted = (nodeId: string, senderClientId?: string) => {
+        if (senderClientId === CLIENT_ID) return;
         useEditorStore.getState().applyRemoteNodeDeleted(nodeId);
       };
 
@@ -168,6 +184,7 @@ export default function EditorPage() {
         socketService.off("comment-added", handleCommentAdded);
         socketService.off("comment-deleted", handleCommentDeleted);
         socketService.disconnect();
+        unsubscribeNodes();
       };
     }
   }, [id, loadNodes, user]);
@@ -195,6 +212,15 @@ export default function EditorPage() {
             });
           });
         }
+      } else if (e.key === "Tab") {
+        // Tab: create a child node of the selected node
+        if (selectedNodeIds.size === 1 && id) {
+          e.preventDefault();
+          const parentId = selectedNodeIds.values().next().value as string;
+          const { nodes } = useEditorStore.getState();
+          const selectedNode = nodes.find((n) => n._id === parentId);
+          if (selectedNode) createNode(id, selectedNode);
+        }
       } else if (e.key === "Escape") {
         deselectAll();
       }
@@ -202,7 +228,7 @@ export default function EditorPage() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [deleteSelectedNodes, deselectAll, undo]);
+  }, [deleteSelectedNodes, deselectAll, undo, createNode, id]);
 
   // Undo / Redo shortcuts
   useEffect(() => {
@@ -362,6 +388,10 @@ export default function EditorPage() {
           onDismiss={dismissToast}
         />
       )}
+
+      {/* Initialize Smart Onboarding Tour */}
+      <OnboardingTour isMapLoaded={!isLoadingMap} />
+      <AdvancedFeatureHighlight isMapLoaded={!isLoadingMap} />
 
     </div>
   );

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useEditorStore } from "../../store/editorStore";
 import { useParams } from "react-router-dom";
 
@@ -16,6 +17,9 @@ export default function FloatingToolbar({ onDelete }: Props) {
     const distributeSelectedNodes = useEditorStore((s) => s.distributeSelectedNodes);
     const focusNodeId = useEditorStore((s) => s.focusNodeId);
     const setFocusNodeId = useEditorStore((s) => s.setFocusNodeId);
+    const expandNodeWithAI = useEditorStore((s) => s.expandNodeWithAI);
+
+    const [isExpanding, setIsExpanding] = useState(false);
 
     // For toolbar, if multiple selected, dragging is main action.
     // If single selected, show standard toolbar.
@@ -50,6 +54,16 @@ export default function FloatingToolbar({ onDelete }: Props) {
         if (singleSelectedId) startEditing(singleSelectedId);
     };
 
+    const handleExpandWithAI = async () => {
+        if (!singleSelectedId || !id || !selectedNode || isExpanding) return;
+        setIsExpanding(true);
+        try {
+            await expandNodeWithAI(id, singleSelectedId, selectedNode.text);
+        } finally {
+            setIsExpanding(false);
+        }
+    };
+
     const toolItems = [
         {
             title: selectedNode ? (selectedNode.parentId ? "Add sibling node" : "Add child node") : "Select a node first",
@@ -62,18 +76,22 @@ export default function FloatingToolbar({ onDelete }: Props) {
             disabled: !selectedNode,
         },
         {
-            title: "Link (coming soon)",
-            icon: (
-                <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+            title: selectedNode ? "✨ Expand With AI" : "Select a node first",
+            icon: isExpanding ? (
+                <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" style={{ animation: "spin 1s linear infinite" }}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4V2m0 20v-2m8-8h2M2 12h2m15.364-7.364l1.414-1.414M4.222 19.778l1.414-1.414m12.728 0l-1.414-1.414M5.636 5.636L4.222 4.222" />
+                </svg>
+            ) : (
+                <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                    <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
                 </svg>
             ),
-            onClick: undefined,
-            disabled: true,
+            onClick: handleExpandWithAI,
+            disabled: !selectedNode || isExpanding,
+            ai: true,
         },
         {
-            title: selectedNode ? "Edit node text" : "Select a node first",
+            title: "Link (coming soon)",
             icon: (
                 <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <polyline points="4 7 4 4 20 4 20 7" /><line x1="9" y1="20" x2="15" y2="20" /><line x1="12" y1="4" x2="12" y2="20" />
@@ -93,6 +111,7 @@ export default function FloatingToolbar({ onDelete }: Props) {
             disabled: true,
         },
         {
+            id: "btn-focus-subtree",
             title: selectedNode ? (focusNodeId === selectedNode._id ? "Exit Focus" : "Focus on Subtree") : "Select a node first",
             icon: (
                 <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -180,6 +199,7 @@ export default function FloatingToolbar({ onDelete }: Props) {
             {toolItems.map((item, i) => (
                 <button
                     key={i}
+                    id={(item as any).id}
                     title={item.title}
                     onClick={item.onClick}
                     disabled={item.disabled}
@@ -188,21 +208,23 @@ export default function FloatingToolbar({ onDelete }: Props) {
                         cursor: item.disabled ? "not-allowed" : "pointer",
                         color: item.disabled
                             ? "#4b5563"
-                            : item.danger ? "#f87171" : "#9ca3af",
+                            : item.danger ? "#f87171" 
+                            : item.ai && !isExpanding ? "#d946ef" // special color for AI
+                            : "#9ca3af",
                         padding: "8px", borderRadius: "9px",
                         display: "flex", alignItems: "center", justifyContent: "center",
-                        transition: "background 0.15s, color 0.15s",
+                        transition: "background 0.15s, color 0.15s, box-shadow 0.15s",
                         opacity: item.disabled ? 0.45 : 1,
                     }}
                     onMouseEnter={(e) => {
                         if (item.disabled) return;
                         (e.currentTarget as HTMLButtonElement).style.background = "#334155";
-                        (e.currentTarget as HTMLButtonElement).style.color = item.danger ? "#ef4444" : "white";
+                        (e.currentTarget as HTMLButtonElement).style.color = item.danger ? "#ef4444" : item.ai ? "#f0abfc" : "white";
                     }}
                     onMouseLeave={(e) => {
                         if (item.disabled) return;
                         (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-                        (e.currentTarget as HTMLButtonElement).style.color = item.danger ? "#f87171" : "#9ca3af";
+                        (e.currentTarget as HTMLButtonElement).style.color = item.danger ? "#f87171" : item.ai && !isExpanding ? "#d946ef" : "#9ca3af";
                     }}
                 >
                     {item.icon}

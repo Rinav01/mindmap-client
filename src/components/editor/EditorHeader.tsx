@@ -5,6 +5,7 @@ import ShareModal from "./ShareModal";
 import AiGenerateModal from "./AiGenerateModal";
 import ExportMenu from "./ExportMenu";
 import PresenceAvatars from "./PresenceAvatars";
+import { useSyncStore } from "../../store/useSyncStore";
 
 // ─── Shared style helper ───────────────────────────────────────────────────────
 
@@ -179,13 +180,73 @@ function EditorToolbar({ onAddNode, onToggleHistory, isHistoryOpen, onToggleActi
             </button>
 
             {/* History / snapshots */}
-            <button style={iconBtn(isHistoryOpen)} onClick={onToggleHistory} title="History & Snapshots"
+            <button id="btn-history" style={iconBtn(isHistoryOpen)} onClick={onToggleHistory} title="History & Snapshots"
                 onMouseEnter={(e) => { if (!isHistoryOpen) hover(e, true); }}
                 onMouseLeave={(e) => { if (!isHistoryOpen) hover(e, false); }}>
                 <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <path d="M12 8v4l3 3" /><circle cx="12" cy="12" r="9" /><path d="M3.3 7a9 9 0 1 1 0 10" />
                 </svg>
             </button>
+        </div>
+    );
+}
+
+// ─── Sub-component: Sync Status Indicator ─────────────────────────────────────
+
+function SyncStatusIndicator() {
+    const networkStatus = useSyncStore((s) => s.networkStatus);
+    const lastSyncTimestamp = useSyncStore((s) => s.lastSyncTimestamp);
+
+    let icon;
+    let text;
+    let color;
+
+    switch (networkStatus) {
+        case "online":
+            icon = <circle cx="12" cy="12" r="5" fill="currentColor" />;
+            text = "Online";
+            color = "#22c55e"; // Green
+            break;
+        case "syncing":
+            icon = (
+                <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" style={{ animation: "spin 1s linear infinite" }}>
+                    <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+                    <path d="M21 3v5h-5" />
+                </svg>
+            );
+            text = "Syncing...";
+            color = "#eab308"; // Yellow
+            break;
+        case "offline":
+            icon = (
+                <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <line x1="1" y1="1" x2="23" y2="23" />
+                    <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" />
+                    <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" />
+                    <path d="M10.71 5.05A16 16 0 0 1 22.58 9" />
+                    <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88" />
+                    <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+                    <line x1="12" y1="20" x2="12.01" y2="20" />
+                </svg>
+            );
+            text = "Offline Mode";
+            color = "#ef4444"; // Red
+            break;
+        case "idle":
+            icon = (
+                <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <polyline points="20 6 9 17 4 12" />
+                </svg>
+            );
+            text = "All changes saved";
+            color = "#9ca3af"; // Gray
+            break;
+    }
+
+    return (
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", color, fontSize: "12px", fontWeight: 500, fontFamily: "Inter, sans-serif" }} title={lastSyncTimestamp ? `Last sync: ${new Date(lastSyncTimestamp).toLocaleTimeString()}` : "No sync history"}>
+            {icon}
+            {text}
         </div>
     );
 }
@@ -235,6 +296,8 @@ export default function EditorHeader(props: EditorHeaderProps) {
 
             <div style={{ flex: 1 }} />
 
+            <SyncStatusIndicator />
+
             {/* Zoom readout */}
             <div style={{ display: "flex", alignItems: "center", gap: "6px", background: "#1f2937", borderRadius: "8px", padding: "5px 10px", color: "#9ca3af", fontSize: "13px", fontWeight: 500, flexShrink: 0 }}>
                 <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -247,6 +310,7 @@ export default function EditorHeader(props: EditorHeaderProps) {
 
             {/* Share */}
             <button
+                id="btn-share"
                 title="Share this map"
                 onClick={() => setIsShareModalOpen(true)}
                 style={{ display: "flex", alignItems: "center", gap: "6px", padding: "7px 14px", borderRadius: "8px", flexShrink: 0, background: "#10b981", border: "none", cursor: "pointer", color: "white", fontSize: "13px", fontWeight: 600, fontFamily: "Inter, sans-serif", transition: "background 0.15s" }}
@@ -262,6 +326,7 @@ export default function EditorHeader(props: EditorHeaderProps) {
             {/* AI Generate */}
             {!isViewer && (
                 <button
+                    id="btn-ai-generate"
                     onClick={() => setIsAiModalOpen(true)}
                     title="Generate mindmap with AI"
                     style={{ display: "flex", alignItems: "center", gap: "6px", background: "linear-gradient(135deg, #6366f1, #8b5cf6)", border: "none", borderRadius: "8px", padding: "6px 12px", cursor: "pointer", color: "white", fontSize: "12px", fontWeight: 600, fontFamily: "Inter, sans-serif", flexShrink: 0, boxShadow: "0 0 12px rgba(99,102,241,0.4)", transition: "box-shadow 0.2s, transform 0.15s" }}

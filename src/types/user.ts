@@ -4,6 +4,8 @@ export interface User {
     username: string;
     email: string;
     color?: string;
+    hasCompletedOnboarding?: boolean;
+    hasCompletedAdvancedTutorial?: boolean;
     createdAt?: string;
     updatedAt?: string;
     password?: string;

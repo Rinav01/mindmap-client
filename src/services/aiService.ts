@@ -12,3 +12,15 @@ export const generateMindmapFromAI = async (
     const res = await api.post("/ai/generate-mindmap", { topic, mindMapId });
     return res.data;
 };
+
+/**
+ * Calls the backend AI endpoint to expand a specific node with generated children.
+ */
+export const expandNodeWithAI = async (
+    mindMapId: string,
+    nodeId: string,
+    text: string
+): Promise<NodeType[]> => {
+    const res = await api.post("/ai/expand-node", { mindMapId, nodeId, text });
+    return res.data;
+};

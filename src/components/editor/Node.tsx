@@ -132,7 +132,7 @@ function Node({ node, hasChildren, siblingIndex, isFaded }: Props) {
       id={`node-group-${node._id}`}
       ref={groupRef}
       transform={`translate(${node.x}, ${node.y})`}
-      className="node-group"
+      className={`node-group ${isRoot ? "tutorial-node" : ""}`}
     >
       {/* Collapse/Expand Toggle (only if children exist) */}
       {hasChildren && (

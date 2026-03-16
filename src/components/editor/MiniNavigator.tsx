@@ -57,7 +57,7 @@ export default function MiniNavigator() {
     const vpMiniH = (vpWorldH / worldH) * MINI_H;
 
     return (
-        <div style={{
+        <div id="mini-navigator" style={{
             position: "fixed", bottom: "16px", left: "16px",
             background: "#1e293b", border: "1px solid #334155",
             borderRadius: "10px", padding: "8px",

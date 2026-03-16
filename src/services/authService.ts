@@ -22,4 +22,14 @@ export const authService = {
         const response = await api.get<User>("/auth/me");
         return response.data;
     },
+
+    async completeOnboarding(): Promise<{ hasCompletedOnboarding: boolean }> {
+        const response = await api.patch<{ hasCompletedOnboarding: boolean }>("/auth/onboarding");
+        return response.data;
+    },
+
+    async completeAdvancedTutorial(): Promise<{ hasCompletedAdvancedTutorial: boolean }> {
+        const response = await api.patch<{ hasCompletedAdvancedTutorial: boolean }>("/auth/advanced-tutorial");
+        return response.data;
+    },
 };

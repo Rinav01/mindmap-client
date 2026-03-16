@@ -1,10 +1,15 @@
 import type { SliceCreator } from ".";
 import { api } from "../../services/api";
+import { expandNodeWithAI as apiExpandNode } from "../../services/aiService";
 import { performAnimatedLayoutChange } from "../../engine/motionEngine";
 import { socketService } from "../../services/socket";
 import type { NodeType } from "../../types/mindmap";
+import { useAuthStore } from "../authStore";
+import { dispatchOperation } from "../operationDispatcher";
 
-// ─── Pure helpers (extracted from editorStore for testability) ─────────────────
+// ─── Pure helpers ──────────────────────────────────────────────────────────────
+
+export const generateObjectId = () => [...Array(24)].map(() => Math.floor(Math.random() * 16).toString(16)).join('');
 
 /** Normalize a raw API response object into a typed NodeType. */
 export function normalizeNode(n: unknown): NodeType {
@@ -68,10 +73,12 @@ export function calculateTreeLayout(nodes: NodeType[], rootNode: NodeType, ancho
 
 export interface NodeSlice {
     nodes: NodeType[];
+    mindMapId: string | null;
 
     appendNodes: (nodes: NodeType[]) => void;
     replaceNodes: (mindMapId: string) => Promise<void>;
     loadNodes: (mindMapId: string) => Promise<void>;
+    expandNodeWithAI: (mindMapId: string, nodeId: string, text: string) => Promise<void>;
 
     createNode: (mindMapId: string, parent: NodeType) => Promise<void>;
     commitDragEnd: (id: string, x: number, y: number) => Promise<void>;
@@ -100,6 +107,7 @@ export interface NodeSlice {
 
 export const createNodeSlice: SliceCreator<NodeSlice> = (set, get) => ({
     nodes: [],
+    mindMapId: null,
 
     appendNodes: (newNodes) =>
         set((state) => ({
@@ -126,73 +134,132 @@ export const createNodeSlice: SliceCreator<NodeSlice> = (set, get) => ({
     },
 
     loadNodes: async (mindMapId) => {
-        set({ isLoadingMap: true });
+        set({ isLoadingMap: true, mindMapId });
+        
+        // 1. Instant local restore
+        const _db = await import('../indexedDb').then(m => m.dbOptions);
+        const localNodes = await _db.getLocalMapState(mindMapId);
+        if (localNodes && localNodes.length > 0) {
+            set({ nodes: localNodes, isLoadingMap: false }); // Render immediately
+        }
+
+        // 2. Background sync from server
         try {
             const [nodesRes, mapRes] = await Promise.all([
                 api.get(`/mindmaps/${mindMapId}/nodes`),
                 api.get(`/mindmaps/${mindMapId}`),
             ]);
-            set({ nodes: (nodesRes.data || []).map(normalizeNode), mapTitle: mapRes.data?.title ?? "", isLoadingMap: false });
-        } catch (err) { console.error("Failed to load map/nodes:", err); set({ isLoadingMap: false }); }
+            
+            const serverNodes = (nodesRes.data || []).map(normalizeNode);
+            set({ nodes: serverNodes, mapTitle: mapRes.data?.title ?? "", isLoadingMap: false });
+            
+            // Backup server truth to local store
+            await _db.saveLocalMapState(mindMapId, serverNodes);
+        } catch (err) { 
+            console.error("Failed to load map/nodes from server, retaining local if available:", err); 
+            set({ isLoadingMap: false }); 
+        }
     },
 
     createNode: async (mindMapId, parent) => {
-        const res = await api.post("/mindmaps/nodes", { mindMapId, parentId: parent._id, x: parent.x + 200, y: parent.y });
-        const newNode = normalizeNode(res.data);
+        const newId = generateObjectId();
+        const newNode: NodeType = {
+            _id: newId,
+            text: "New Node",
+            notes: "",
+            x: parent.x + 200,
+            y: parent.y,
+            parentId: parent._id,
+            collapsed: false,
+        };
         set({ nodes: [...get().nodes, newNode], selectedNodeIds: new Set([newNode._id]) });
         get().pushHistory();
+        
+        const user = useAuthStore.getState().user;
+        dispatchOperation('CREATE_NODE', mindMapId, newId, { parentId: parent._id, x: newNode.x, y: newNode.y }, user);
+        
         socketService.emitNodeAdded(newNode);
+    },
+
+    expandNodeWithAI: async (mindMapId, nodeId, text) => {
+        try {
+            const newNodesRaw = await apiExpandNode(mindMapId, nodeId, text);
+            const newNodes = newNodesRaw.map(normalizeNode);
+            
+            // Append nodes instantly exactly on top of the parent
+            set((state) => ({ nodes: [...state.nodes, ...newNodes] }));
+            
+            // Force the FLIP animated auto-layout to elegantly fan them out
+            await get().autoLayout();
+            
+            // Push to history once the layout finishes
+            get().pushHistory();
+
+            // Emit to peers so they see the new nodes
+            // The backend doesn't have a bulk 'nodes-added' yet, so we emit individually
+            newNodes.forEach((n) => socketService.emitNodeAdded(n));
+        } catch (err) {
+            console.error("Failed to expand node with AI:", err);
+            throw err;
+        }
     },
 
     commitDragEnd: async (id, x, y) => {
         set({ nodes: get().nodes.map(n => n._id === id ? { ...n, x, y } : n) });
-        try {
-            await api.patch(`/mindmaps/nodes/${id}`, { x, y });
-            get().pushHistory();
-            socketService.emitNodeDragged(id, x, y);
-        } catch (err) { console.error("Failed to save node position:", err); }
+        get().pushHistory();
+        
+        const mapId = get().mindMapId || "";
+        const user = useAuthStore.getState().user;
+        dispatchOperation('MOVE_NODE', mapId, id, { x, y }, user);
+        socketService.emitNodeDragged(id, x, y);
     },
 
     commitBatchDragEnd: async (updates) => {
         set({ nodes: get().nodes.map(n => { const u = updates.find(u => u.id === n._id); return u ? { ...n, x: u.x, y: u.y } : n; }) });
-        try {
-            await Promise.all(updates.map(u => api.patch(`/mindmaps/nodes/${u.id}`, { x: u.x, y: u.y })));
-            get().pushHistory();
-            socketService.emitNodesUpdated(updates);
-        } catch (err) { console.error("Failed to save batch positions:", err); }
+        get().pushHistory();
+        
+        const mapId = get().mindMapId || "";
+        const user = useAuthStore.getState().user;
+        updates.forEach(u => dispatchOperation('MOVE_NODE', mapId, u.id, { x: u.x, y: u.y }, user));
+        
+        socketService.emitNodesUpdated(updates);
     },
 
     updateNodeColor: async (id, color) => {
         set({ nodes: get().nodes.map(n => n._id === id ? { ...n, color } : n) });
         get().pushHistory();
-        try { await api.patch(`/mindmaps/nodes/${id}`, { color }); socketService.emitNodeUpdated(id, { color }); }
-        catch (err) { console.error("Failed to save node color:", err); }
+        const mapId = get().mindMapId || "";
+        const user = useAuthStore.getState().user;
+        dispatchOperation('EDIT_NODE', mapId, id, { color }, user);
+        socketService.emitNodeUpdated(id, { color });
     },
 
     updateNodeFontSize: async (id, fontSize) => {
         set({ nodes: get().nodes.map(n => n._id === id ? { ...n, fontSize } : n) });
         get().pushHistory();
-        try { await api.patch(`/mindmaps/nodes/${id}`, { fontSize }); socketService.emitNodeUpdated(id, { fontSize }); }
-        catch (err) { console.error("Failed to save node font size:", err); }
+        const mapId = get().mindMapId || "";
+        const user = useAuthStore.getState().user;
+        dispatchOperation('EDIT_NODE', mapId, id, { fontSize }, user);
+        socketService.emitNodeUpdated(id, { fontSize });
     },
 
     updateNodeText: async (id, text) => {
-        try {
-            await api.patch(`/mindmaps/nodes/${id}/text`, { text });
-            set({ nodes: get().nodes.map(n => n._id === id ? { ...n, text } : n), editingNodeId: null });
-            get().pushHistory();
-            socketService.emitNodeUpdated(id, { text });
-            socketService.emitNodeEditingStopped(id);
-        } catch (err) { console.error("Failed to update node text:", err); }
+        set({ nodes: get().nodes.map(n => n._id === id ? { ...n, text } : n), editingNodeId: null });
+        get().pushHistory();
+        const mapId = get().mindMapId || "";
+        const user = useAuthStore.getState().user;
+        dispatchOperation('EDIT_NODE', mapId, id, { text }, user);
+        socketService.emitNodeUpdated(id, { text });
+        socketService.emitNodeEditingStopped(id);
     },
 
     updateNodeNotes: async (id, notes) => {
-        try {
-            await api.patch(`/mindmaps/nodes/${id}`, { notes });
-            set({ nodes: get().nodes.map(n => n._id === id ? { ...n, notes } : n), editingNodeId: null });
-            get().pushHistory();
-            socketService.emitNodeUpdated(id, { notes });
-        } catch (err) { console.error("Failed to update node notes:", err); }
+        set({ nodes: get().nodes.map(n => n._id === id ? { ...n, notes } : n), editingNodeId: null });
+        get().pushHistory();
+        const mapId = get().mindMapId || "";
+        const user = useAuthStore.getState().user;
+        dispatchOperation('EDIT_NODE', mapId, id, { notes }, user);
+        socketService.emitNodeUpdated(id, { notes });
     },
 
     toggleNodeCollapse: (id) => {
@@ -227,18 +294,17 @@ export const createNodeSlice: SliceCreator<NodeSlice> = (set, get) => ({
     deleteNode: async (id) => {
         set((s) => { const d = new Set(s.deletingNodeIds); d.add(id); return { deletingNodeIds: d }; });
         await new Promise(r => setTimeout(r, 300));
-        try {
-            await api.delete(`/mindmaps/nodes/${id}`);
-            set((s) => {
-                const d = new Set(s.deletingNodeIds); d.delete(id);
-                return { nodes: s.nodes.filter(n => n._id !== id && n.parentId !== id), selectedNodeIds: new Set(), deletingNodeIds: d };
-            });
-            get().pushHistory();
-            socketService.emitNodeDeleted(id);
-        } catch (err) {
-            console.error("Failed to delete node:", err);
-            set((s) => { const d = new Set(s.deletingNodeIds); d.delete(id); return { deletingNodeIds: d }; });
-        }
+        
+        set((s) => {
+            const d = new Set(s.deletingNodeIds); d.delete(id);
+            return { nodes: s.nodes.filter(n => n._id !== id && n.parentId !== id), selectedNodeIds: new Set(), deletingNodeIds: d };
+        });
+        get().pushHistory();
+        
+        const mapId = get().mindMapId || "";
+        const user = useAuthStore.getState().user;
+        dispatchOperation('DELETE_NODE', mapId, id, {}, user);
+        socketService.emitNodeDeleted(id);
     },
 
     deleteSelectedNodes: async () => {
@@ -247,18 +313,21 @@ export const createNodeSlice: SliceCreator<NodeSlice> = (set, get) => ({
         const ids = Array.from(selectedNodeIds);
         set((s) => { const d = new Set(s.deletingNodeIds); ids.forEach(id => d.add(id)); return { deletingNodeIds: d }; });
         await new Promise(r => setTimeout(r, 300));
-        try {
-            await Promise.all(ids.map(id => api.delete(`/mindmaps/nodes/${id}`)));
-            const toRemove = new Set(ids);
-            let changed = true;
-            while (changed) { changed = false; nodes.forEach(n => { if (n.parentId && toRemove.has(n.parentId) && !toRemove.has(n._id)) { toRemove.add(n._id); changed = true; } }); }
-            set((s) => { const d = new Set(s.deletingNodeIds); ids.forEach(id => d.delete(id)); return { nodes: s.nodes.filter(n => !toRemove.has(n._id)), selectedNodeIds: new Set(), deletingNodeIds: d }; });
-            get().pushHistory();
-            socketService.emitNodesDeleted(Array.from(toRemove));
-        } catch (err) {
-            console.error("Failed to delete nodes:", err);
-            set((s) => { const d = new Set(s.deletingNodeIds); ids.forEach(id => d.delete(id)); return { deletingNodeIds: d }; });
-        }
+        
+        const toRemove = new Set(ids);
+        let changed = true;
+        while (changed) { changed = false; nodes.forEach(n => { if (n.parentId && toRemove.has(n.parentId) && !toRemove.has(n._id)) { toRemove.add(n._id); changed = true; } }); }
+        
+        set((s) => { const d = new Set(s.deletingNodeIds); ids.forEach(id => d.delete(id)); return { nodes: s.nodes.filter(n => !toRemove.has(n._id)), selectedNodeIds: new Set(), deletingNodeIds: d }; });
+        get().pushHistory();
+        
+        const mapId = get().mindMapId || "";
+        const user = useAuthStore.getState().user;
+        Array.from(toRemove).forEach(id => {
+            dispatchOperation('DELETE_NODE', mapId, id, {}, user);
+        });
+        
+        socketService.emitNodesDeleted(Array.from(toRemove));
     },
 
     autoLayout: async () => {
@@ -280,11 +349,14 @@ export const createNodeSlice: SliceCreator<NodeSlice> = (set, get) => ({
             () => get().setLayoutAnimating(true),
             () => get().setLayoutAnimating(false),
         );
-        try {
-            await Promise.all(allPositioned.map(n => api.patch(`/mindmaps/nodes/${n._id}`, { x: n.x, y: n.y })));
-            get().pushHistory();
-            socketService.emitNodesUpdated(allPositioned.map(n => ({ id: n._id, x: n.x, y: n.y })));
-        } catch (err) { console.error("[AutoLayout] Failed:", err); }
+        
+        get().pushHistory();
+        
+        const mapId = get().mindMapId || "";
+        const user = useAuthStore.getState().user;
+        allPositioned.forEach(n => dispatchOperation('MOVE_NODE', mapId, n._id, { x: n.x, y: n.y }, user));
+        
+        socketService.emitNodesUpdated(allPositioned.map(n => ({ id: n._id, x: n.x, y: n.y })));
     },
 
     alignSelectedNodes: async (type) => {

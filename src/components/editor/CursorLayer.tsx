@@ -1,9 +1,9 @@
 import { useRef, useEffect, useCallback } from "react";
 import { useEditorStore } from "../../store/editorStore";
-import type { LiveCursor } from "../../store/editorStore";
+import type { LiveCursor } from "../../types/mindmap";
 
 // Each cursor tracks its own interpolated position via refs
-function InterpolatedCursor({ id, cursor }: { id: string; cursor: import("../../store/editorStore").LiveCursor }) {
+function InterpolatedCursor({ cursor }: { id: string; cursor: LiveCursor }) {
     const gRef = useRef<SVGGElement>(null);
     const currentPos = useRef({ x: cursor.x, y: cursor.y });
     const targetPos = useRef({ x: cursor.x, y: cursor.y });
