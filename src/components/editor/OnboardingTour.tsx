@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react";
 import { driver, type DriveStep } from "driver.js";
 import { useAuthStore } from "../../store/authStore";
-import { useEditorStore } from "../../store/editorStore";
 
 export default function OnboardingTour({ isMapLoaded }: { isMapLoaded: boolean }) {
     const { user, completeOnboarding } = useAuthStore();
