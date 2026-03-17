@@ -28,6 +28,8 @@ export default function AiGenerateModal({ onClose }: Props) {
             await generateMindmapFromAI(topic.trim(), mindMapId);
             // Silently reload nodes without unmounting the Canvas
             await replaceNodes(mindMapId);
+            // Reload activity logs to fetch the newly generated log entry
+            useEditorStore.getState().loadActivityLogs(mindMapId);
             onClose();
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : "AI generation failed";

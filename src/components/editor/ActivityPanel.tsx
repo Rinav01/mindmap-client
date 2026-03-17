@@ -27,6 +27,10 @@ function getLogMessage(log: any) {
     switch (log.action) {
         case "NODE_CREATED":
             return <div className="log-content"><Name /> <span className="log-action">created a new node</span></div>;
+        case "AI_GENERATED":
+            return <div className="log-content"><Name /> <span className="log-action">generated AI map for</span> <span className="log-pill">"{log.metadata?.text}"</span></div>;
+        case "AI_EXPANDED":
+            return <div className="log-content"><Name /> <span className="log-action">used AI to brainstorm</span> <span className="log-pill">"{log.metadata?.text}"</span></div>;
         case "NODE_DELETED":
             return <div className="log-content"><Name /> <span className="log-action">deleted a node</span> <span className="log-pill">"{log.metadata?.text || 'Unknown'}"</span></div>;
         case "NODE_EDITED":

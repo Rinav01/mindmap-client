@@ -9,8 +9,6 @@ export default function OnboardingTour({ isMapLoaded }: { isMapLoaded: boolean }
     const driverRef = useRef<ReturnType<typeof driver> | null>(null);
 
     // State tracking refs to detect when exactly an action was performed
-    const initialNodeCount = useRef<number>(0);
-
     useEffect(() => {
         // Wait until map is fully loaded and user data exists
         if (!isMapLoaded || !user) return;
@@ -19,10 +17,6 @@ export default function OnboardingTour({ isMapLoaded }: { isMapLoaded: boolean }
         if (hasRun.current || user.hasCompletedOnboarding) return;
 
         let isMounted = true;
-        
-        // Initial state capture
-        const currentState = useEditorStore.getState();
-        initialNodeCount.current = currentState.nodes.length;
         
         const steps: DriveStep[] = [
             {
@@ -40,7 +34,6 @@ export default function OnboardingTour({ isMapLoaded }: { isMapLoaded: boolean }
                     description: "Select the root node and press <kbd>Tab</kbd> to add your first child idea.",
                     side: "bottom",
                     align: "center",
-                    popoverClass: "hide-next-btn", // Custom CSS to hide the Next button
                 }
             },
             {
@@ -50,7 +43,6 @@ export default function OnboardingTour({ isMapLoaded }: { isMapLoaded: boolean }
                     description: "Excellent! Now grab the node and drag it somewhere else on the canvas.",
                     side: "right",
                     align: "center",
-                    popoverClass: "hide-next-btn", // Custom CSS to hide the Next button
                 }
             },
             {
@@ -92,7 +84,7 @@ export default function OnboardingTour({ isMapLoaded }: { isMapLoaded: boolean }
         ];
 
         driverRef.current = driver({
-            showProgress: true,
+            showProgress: false,
             animate: true,
             allowClose: false, // Prevent clicking outside to close
             steps,
@@ -107,42 +99,9 @@ export default function OnboardingTour({ isMapLoaded }: { isMapLoaded: boolean }
             driverRef.current?.drive();
         }, 1000);
 
-        // --- ZUSTAND INTERACTIVE SUBSCRIPTION ---
-        // We listen to the store to detect when the user performs the requested actions
-        const unsubscribe = useEditorStore.subscribe((state, prevState) => {
-            if (!driverRef.current) return;
-            const currentStepIndex = driverRef.current.getActiveIndex();
-            
-            // Step 1 check (Index 1): Waiting for a node to be created
-            if (currentStepIndex === 1) {
-                if (state.nodes.length > prevState.nodes.length) {
-                    // Node created! Move to the next step
-                    driverRef.current.moveNext();
-                }
-            }
-            
-            // Step 2 check (Index 2): Waiting for a node to be dragged
-            if (currentStepIndex === 2) {
-                // Check if any node's coordinate changed
-                if (state.nodes.length === prevState.nodes.length) {
-                    const hasMoved = state.nodes.some((node, i) => {
-                        const prevNode = prevState.nodes[i];
-                        if (!prevNode) return false;
-                        const dx = Math.abs(node.x - prevNode.x);
-                        const dy = Math.abs(node.y - prevNode.y);
-                        return dx > 50 || dy > 50;
-                    });
-                    if (hasMoved) {
-                        driverRef.current.moveNext();
-                    }
-                }
-            }
-        });
-
         return () => {
             isMounted = false;
             clearTimeout(timer);
-            unsubscribe();
             // If component unmounts mid-tour, destroy it forcefully
             if (driverRef.current?.isActive()) {
                 driverRef.current.destroy();

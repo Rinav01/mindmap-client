@@ -45,7 +45,7 @@ export interface ActivityLogType {
         username: string;
         color: string;
     };
-    action: "NODE_CREATED" | "NODE_DELETED" | "NODE_EDITED" | "NODE_MOVED" | "NODE_COLOR_CHANGED";
+    action: "NODE_CREATED" | "NODE_DELETED" | "NODE_EDITED" | "NODE_MOVED" | "NODE_COLOR_CHANGED" | "AI_GENERATED" | "AI_EXPANDED";
     nodeId?: string;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     metadata?: any;

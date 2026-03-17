@@ -5,7 +5,8 @@ import { performAnimatedLayoutChange } from "../../engine/motionEngine";
 import { socketService } from "../../services/socket";
 import type { NodeType } from "../../types/mindmap";
 import { useAuthStore } from "../authStore";
-import { dispatchOperation } from "../operationDispatcher";
+import { dispatchOperation, dispatchBatchOperations } from "../operationDispatcher";
+import { useEditorStore } from "../editorStore";
 
 // ─── Pure helpers ──────────────────────────────────────────────────────────────
 
@@ -198,6 +199,9 @@ export const createNodeSlice: SliceCreator<NodeSlice> = (set, get) => ({
             // Emit to peers so they see the new nodes
             // The backend doesn't have a bulk 'nodes-added' yet, so we emit individually
             newNodes.forEach((n) => socketService.emitNodeAdded(n));
+
+            // Reload activity logs to fetch the newly generated log entry
+            useEditorStore.getState().loadActivityLogs(mindMapId);
         } catch (err) {
             console.error("Failed to expand node with AI:", err);
             throw err;
@@ -220,7 +224,10 @@ export const createNodeSlice: SliceCreator<NodeSlice> = (set, get) => ({
         
         const mapId = get().mindMapId || "";
         const user = useAuthStore.getState().user;
-        updates.forEach(u => dispatchOperation('MOVE_NODE', mapId, u.id, { x: u.x, y: u.y }, user));
+        dispatchBatchOperations(
+            updates.map(u => ({ type: 'MOVE_NODE' as const, mapId, nodeId: u.id, payload: { x: u.x, y: u.y } })),
+            user
+        );
         
         socketService.emitNodesUpdated(updates);
     },
@@ -323,9 +330,10 @@ export const createNodeSlice: SliceCreator<NodeSlice> = (set, get) => ({
         
         const mapId = get().mindMapId || "";
         const user = useAuthStore.getState().user;
-        Array.from(toRemove).forEach(id => {
-            dispatchOperation('DELETE_NODE', mapId, id, {}, user);
-        });
+        dispatchBatchOperations(
+            Array.from(toRemove).map(id => ({ type: 'DELETE_NODE' as const, mapId, nodeId: id, payload: {} })),
+            user
+        );
         
         socketService.emitNodesDeleted(Array.from(toRemove));
     },
@@ -354,7 +362,10 @@ export const createNodeSlice: SliceCreator<NodeSlice> = (set, get) => ({
         
         const mapId = get().mindMapId || "";
         const user = useAuthStore.getState().user;
-        allPositioned.forEach(n => dispatchOperation('MOVE_NODE', mapId, n._id, { x: n.x, y: n.y }, user));
+        dispatchBatchOperations(
+            allPositioned.map(n => ({ type: 'MOVE_NODE' as const, mapId, nodeId: n._id, payload: { x: n.x, y: n.y } })),
+            user
+        );
         
         socketService.emitNodesUpdated(allPositioned.map(n => ({ id: n._id, x: n.x, y: n.y })));
     },
@@ -429,7 +440,11 @@ export const createNodeSlice: SliceCreator<NodeSlice> = (set, get) => ({
         } catch (err) { console.error("Failed to reparent nodes:", err); }
     },
 
-    applyRemoteNodeCreated: (node) => set((s) => ({ nodes: [...s.nodes, node] })),
+    applyRemoteNodeCreated: (node) => set((s) => {
+        // Guard against duplicates — the sync engine may broadcast back a node we already have
+        if (s.nodes.some(n => n._id === node._id)) return {};
+        return { nodes: [...s.nodes, node] };
+    }),
     applyRemoteNodeUpdated: (id, updates) => set((s) => ({ nodes: s.nodes.map(n => n._id === id ? { ...n, ...updates } : n) })),
     applyRemoteNodesUpdated: (updates) => set((s) => ({ nodes: s.nodes.map(n => { const u = updates.find(u => u.id === n._id); return u ? { ...n, ...u } : n; }) })),
     applyRemoteNodeDeleted: (id) => set((s) => ({ nodes: s.nodes.filter(n => n._id !== id && n.parentId !== id) })),
