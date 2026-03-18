@@ -184,6 +184,73 @@ Type imports that previously caused circular dependency chains (`socket.ts` impo
 
 ## 🏗️ Architecture
 
+### Database Entity Relationship Diagram (ERD)
+
+The system relies on a NoSQL document database (MongoDB), but relationships are strictly enforced at the application level to maintain data integrity across collaborative sessions.
+
+```mermaid
+erDiagram
+    USER ||--o{ MINDMAP : "owns/edits"
+    MINDMAP ||--o{ NODE : contains
+    MINDMAP ||--o{ MAP_VERSION : has
+    MINDMAP ||--o{ PROCESSED_OPERATION : logs
+    MINDMAP ||--o{ COLLABORATOR : "has access"
+    NODE ||--o{ NODE_COMMENT : "has comments"
+    
+    USER {
+        ObjectId _id
+        String name
+        String email
+    }
+    MINDMAP {
+        ObjectId _id
+        String title
+        ObjectId creator
+    }
+    NODE {
+        String id
+        ObjectId mindMapId
+        String text
+        Float x
+        Float y
+        String parentId
+    }
+    NODE_COMMENT {
+        ObjectId _id
+        String nodeId
+        ObjectId userId
+        String text
+    }
+```
+
+### Frontend Component Hierarchy
+
+The frontend is highly modularized to prevent unnecessary re-renders in the infinite canvas execution path.
+
+```mermaid
+graph TD
+    App[App.tsx] --> Auth[AuthProvider]
+    Auth --> Router[React Router]
+    
+    Router --> Dash[Dashboard]
+    Router --> EditorView[EditorPage]
+    
+    EditorView --> Header[EditorHeader]
+    EditorView --> Toolbar[FloatingToolbar]
+    EditorView --> CanvasArea[Canvas]
+    EditorView --> Panels[Side Panels]
+    
+    CanvasArea --> MiniNav[MiniNavigator]
+    CanvasArea --> Zoom[ZoomControls]
+    CanvasArea --> Nodes[Node Components]
+    CanvasArea --> Edges[EdgeLayer]
+    CanvasArea --> Cursors[CursorLayer]
+    
+    Panels --> PropPanel[NodePropertiesPanel]
+    Panels --> History[VersionPanel]
+    Panels --> Activity[ActivityPanel]
+```
+
 ### Full System Architecture
 
 ```mermaid
@@ -326,8 +393,21 @@ Rendered entirely in **SVG** for full control over transformations, animations, 
 - **Collapse/Expand**: Toggle subtree visibility with animated entrances/exits.
 
 ### Auto-Layout & Alignment
-- **Recursive Auto-Layout**: Depth-first tree algorithm calculates subtree heights and assigns `x/y` positions to prevent overlap.
-- **FLIP Animation**: Web Animations API with `cubic-bezier(0.2, 0.8, 0.2, 1)` easing for smooth layout transitions.
+
+```mermaid
+flowchart TD
+    Start[Trigger Auto-Layout] --> Capture[Capture Current DOM Positions]
+    Capture --> DFS[Depth-First Traversal]
+    DFS --> Calc[Calculate Node Subtree Heights & Widths]
+    Calc --> Position[Assign Target X, Y based on parent & sibling dimensions]
+    Position --> React[Update Zustand state with Target Coordinates]
+    React --> Render[React Renders Nodes at Target Coordinates]
+    Render --> Animate[Web Animations API: Animate from Captured to Target]
+    Animate --> End[FLIP Animation Complete]
+```
+
+- **Recursive Auto-Layout**: A depth-first algorithm that calculates the bounding box of each subtree recursively. It positions children nodes avoiding vertical overlap by dynamically spacing them based on the computed heights of their descendants.
+- **FLIP Animation Engine**: Because React state updates instantly snap nodes to their new coordinates, the Web Animations API is used to capture positions *before* the render paint, and smoothly animate them from their old positions using a physically-based `cubic-bezier(0.2, 0.8, 0.2, 1)` easing.
 - **Align Tools**: Left, Center, Right, Top, Middle, Bottom edge alignment.
 - **Distribute Tools**: Evenly space selected nodes along horizontal or vertical axes.
 
@@ -337,11 +417,31 @@ Rendered entirely in **SVG** for full control over transformations, animations, 
 
 Click **✨ AI Generate** in the editor toolbar to generate a complete mindmap from a single topic prompt.
 
-**How it works:**
-1. Modal prompts for a topic → sent to `POST /api/ai/generate-mindmap`
-2. Backend calls **Groq `llama3-70b-8192`** with a JSON-forcing system prompt
-3. Two-pass DFS computes subtree-centered `x,y` positions server-side
-4. Existing nodes replaced silently via `replaceNodes` (no canvas unmount)
+### AI Generation Execution Flow
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant C as Frontend (AI Modal)
+    participant API as Backend API
+    participant AI as Groq Llama 3
+    
+    User->>C: Enter prompt & Submit
+    C->>C: set isLoadingMap(true)
+    C->>API: POST /api/ai/generate-mindmap { prompt }
+    API->>AI: Send system prompt + user topic
+    AI-->>API: Stream/Return JSON tree structure
+    API->>API: Parse JSON & Apply Layout Algorithm
+    API-->>C: Return flattened Node array with x,y coords
+    C->>C: useEditorStore().replaceNodes(nodes)
+    C->>C: set isLoadingMap(false)
+    C->>User: View newly generated map
+```
+
+**How it works in-depth:**
+1. **Prompt Injection**: The user prompt is wrapped in a strict system prompt instructing Groq's `llama3-70b-8192` model to return a structured nested JSON indicating the tree hierarchy.
+2. **Server-Side Rendering (Layout)**: Before returning the generated nodes, the backend runs a two-pass depth-first search (DFS) layout algorithm to compute subtree-centered `x,y` positions for every node so it renders beautifully on the canvas instantly.
+3. **Optimistic Replacement**: The existing nodes are replaced silently via `replaceNodes` avoiding costly canvas unmounts, preserving the user's viewport matrix.
 
 | Action | Sets `isLoadingMap` | Canvas unmounts | Use case |
 |---|:---:|:---:|---|

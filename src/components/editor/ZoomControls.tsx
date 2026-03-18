@@ -8,8 +8,6 @@ export default function ZoomControls({ panelOpen = false }: Props) {
     const zoom = useEditorStore((s) => s.zoom);
     const setZoom = useEditorStore((s) => s.setZoom);
     const fitToScreen = useEditorStore((s) => s.fitToScreen);
-    const isPanMode = useEditorStore((s) => s.isPanMode);
-    const togglePanMode = useEditorStore((s) => s.togglePanMode);
 
     const btnStyle: React.CSSProperties = {
         background: "transparent", border: "none", cursor: "pointer",
@@ -31,28 +29,7 @@ export default function ZoomControls({ panelOpen = false }: Props) {
             zIndex: 40, fontFamily: "Inter, sans-serif",
             transition: "right 0.25s ease",
         }}>
-            {/* Pan Toggle */}
-            <button
-                style={{
-                    ...btnStyle,
-                    color: isPanMode ? "#60a5fa" : "#9ca3af",
-                    background: isPanMode ? "rgba(30, 41, 59, 0.5)" : "transparent",
-                    marginBottom: "4px",
-                    borderBottom: "1px solid #334155",
-                    borderRadius: "7px 7px 0 0",
-                    height: "30px",
-                }}
-                onClick={togglePanMode}
-                title={isPanMode ? "Disable Pan Mode" : "Enable Pan Mode"}
-                onMouseEnter={(e) => { if (!isPanMode) { (e.currentTarget as HTMLButtonElement).style.color = "white"; } }}
-                onMouseLeave={(e) => { if (!isPanMode) { (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; } }}
-            >
-                <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path d="M10 9v-2a2 2 0 0 1 2 -2v0a2 2 0 0 1 2 2v4" />
-                    <path d="M14 9v-2a2 2 0 0 1 2 -2v0a2 2 0 0 1 2 2v2" />
-                    <path d="M10 9v-2a2 2 0 0 0 -2 -2v0a2 2 0 0 0 -2 2v5l-3 -3a2 2 0 0 0 -2.83 2.83l6.83 6.83a4 4 0 0 0 5.66 0l2.34 -2.34a2 2 0 0 0 0 -2.83v-4.66" />
-                </svg>
-            </button>
+
 
             {/* Zoom in */}
             <button

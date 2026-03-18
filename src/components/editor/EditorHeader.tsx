@@ -114,21 +114,27 @@ function EditorToolbar({ onAddNode, onToggleHistory, isHistoryOpen, onToggleActi
 
     return (
         <div style={{ display: "flex", alignItems: "center", gap: "2px" }}>
-            {/* Select mode */}
-            <button style={iconBtn(!isPanMode)} title="Select mode" onClick={() => setIsPanMode(false)}>
-                <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z" /><path d="M13 13l6 6" />
-                </svg>
-            </button>
-
-            {/* Pan mode */}
-            <button style={iconBtn(isPanMode)} title="Pan mode" onClick={() => setIsPanMode(true)}>
-                <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0" />
-                    <path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2" />
-                    <path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8" />
-                    <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
-                </svg>
+            {/* Mode toggle (Pan / Select) */}
+            <button
+                style={iconBtn(true)}
+                title={isPanMode ? "Pan Mode (Click to switch to Select)" : "Select Mode (Click to switch to Pan)"}
+                onClick={() => setIsPanMode(!isPanMode)}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.filter = "brightness(1.2)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.filter = "none"; }}
+            >
+                {isPanMode ? (
+                    <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                        <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0" />
+                        <path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2" />
+                        <path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8" />
+                        <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
+                    </svg>
+                ) : (
+                    <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                        <path d="m2 2 7.17 17.52 3.1-7.3 7.3-3.1Z"/>
+                        <path d="m13 13 6 6"/>
+                    </svg>
+                )}
             </button>
 
             {!isViewer && (
