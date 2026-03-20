@@ -2,16 +2,13 @@ import { useEffect, useState } from "react";
 import { fetchTemplates, createMapFromTemplate, type TemplateType } from "../../services/templateService";
 import { useNavigate } from "react-router-dom";
 
-export default function TemplateGallery({ view }: { view?: string }) {
+export default function TemplateGallery() {
     const [templates, setTemplates] = useState<TemplateType[]>([]);
     const [loading, setLoading] = useState(false);
     const [loadingTemplateId, setLoadingTemplateId] = useState<string | null>(null);
     const navigate = useNavigate();
 
     useEffect(() => {
-        // Only fetch and show templates on the "All Maps" or default dashboard view
-        if (view && view !== "all") return;
-
         let mounted = true;
         setLoading(true);
         fetchTemplates()
@@ -24,9 +21,8 @@ export default function TemplateGallery({ view }: { view?: string }) {
             });
 
         return () => { mounted = false; };
-    }, [view]);
+    }, []);
 
-    if (view && view !== "all") return null;
     if (loading) return null; // Or a skeleton if desired
     if (templates.length === 0) return null;
 
@@ -54,7 +50,7 @@ export default function TemplateGallery({ view }: { view?: string }) {
     return (
         <div style={{ marginBottom: "32px", fontFamily: "Inter, sans-serif" }}>
             <h2 style={{
-                color: "white", fontSize: "16px", fontWeight: 600,
+                color: "#e0e2ea", fontSize: "16px", fontWeight: 600,
                 marginBottom: "16px", display: "flex", alignItems: "center", gap: "8px"
             }}>
                 Start from a Template
@@ -70,8 +66,8 @@ export default function TemplateGallery({ view }: { view?: string }) {
                         onClick={() => handleUseTemplate(tpl._id)}
                         disabled={loadingTemplateId !== null}
                         style={{
-                            background: "#1e293b",
-                            border: "1px dashed #3b82f6",
+                            background: "#181c21",
+                            border: "none",
                             borderRadius: "14px",
                             padding: "16px",
                             display: "flex",
@@ -85,15 +81,15 @@ export default function TemplateGallery({ view }: { view?: string }) {
                         onMouseEnter={(e) => {
                             if (!loadingTemplateId) {
                                 (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)";
-                                (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 8px 24px rgba(59, 130, 246, 0.2)";
-                                (e.currentTarget as HTMLButtonElement).style.background = "#253b59";
+                                (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 8px 24px rgba(0, 0, 0, 0.2)";
+                                (e.currentTarget as HTMLButtonElement).style.background = "#1c2025";
                             }
                         }}
                         onMouseLeave={(e) => {
                             if (!loadingTemplateId) {
                                 (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)";
                                 (e.currentTarget as HTMLButtonElement).style.boxShadow = "none";
-                                (e.currentTarget as HTMLButtonElement).style.background = "#1e293b";
+                                (e.currentTarget as HTMLButtonElement).style.background = "#181c21";
                             }
                         }}
                     >
@@ -107,7 +103,7 @@ export default function TemplateGallery({ view }: { view?: string }) {
                                 }} />
                             )}
                         </div>
-                        <div style={{ color: "white", fontSize: "14px", fontWeight: 600, marginBottom: "4px" }}>
+                        <div style={{ color: "#e0e2ea", fontSize: "14px", fontWeight: 600, marginBottom: "4px" }}>
                             {tpl.title}
                         </div>
                         <div style={{ color: "#94a3b8", fontSize: "12px", lineHeight: "1.4" }}>

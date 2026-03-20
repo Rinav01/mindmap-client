@@ -279,10 +279,11 @@ export default function EditorHeader(props: EditorHeaderProps) {
     return (
         <header style={{
             position: "fixed", top: 0, left: 0, right: 0, height: "52px",
-            background: "#111827", borderBottom: "1px solid #1f2937",
+            background: "#101419", borderBottom: "none",
             display: "flex", alignItems: "center",
             padding: "0 16px", zIndex: 50, gap: "12px",
             fontFamily: "Inter, sans-serif",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
         }}>
             {/* Logo */}
             <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
@@ -319,9 +320,9 @@ export default function EditorHeader(props: EditorHeaderProps) {
                 id="btn-share"
                 title="Share this map"
                 onClick={() => setIsShareModalOpen(true)}
-                style={{ display: "flex", alignItems: "center", gap: "6px", padding: "7px 14px", borderRadius: "8px", flexShrink: 0, background: "#10b981", border: "none", cursor: "pointer", color: "white", fontSize: "13px", fontWeight: 600, fontFamily: "Inter, sans-serif", transition: "background 0.15s" }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#059669"; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#10b981"; }}
+                style={{ display: "flex", alignItems: "center", gap: "6px", padding: "7px 14px", borderRadius: "8px", flexShrink: 0, background: "linear-gradient(135deg, #c0c1ff, #8083ff)", border: "none", cursor: "pointer", color: "#1a1a3a", fontSize: "13px", fontWeight: 600, fontFamily: "Inter, sans-serif", transition: "filter 0.15s" }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.filter = "brightness(1.1)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.filter = "none"; }}
             >
                 <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" /><polyline points="16 6 12 2 8 6" /><line x1="12" y1="2" x2="12" y2="15" />
@@ -335,11 +336,11 @@ export default function EditorHeader(props: EditorHeaderProps) {
                     id="btn-ai-generate"
                     onClick={() => setIsAiModalOpen(true)}
                     title="Generate mindmap with AI"
-                    style={{ display: "flex", alignItems: "center", gap: "6px", background: "linear-gradient(135deg, #6366f1, #8b5cf6)", border: "none", borderRadius: "8px", padding: "6px 12px", cursor: "pointer", color: "white", fontSize: "12px", fontWeight: 600, fontFamily: "Inter, sans-serif", flexShrink: 0, boxShadow: "0 0 12px rgba(99,102,241,0.4)", transition: "box-shadow 0.2s, transform 0.15s" }}
-                    onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 0 20px rgba(99,102,241,0.7)"; e.currentTarget.style.transform = "scale(1.04)"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "0 0 12px rgba(99,102,241,0.4)"; e.currentTarget.style.transform = "scale(1)"; }}
+                    style={{ display: "flex", alignItems: "center", gap: "6px", background: "linear-gradient(135deg, #c0c1ff, #8083ff)", border: "none", borderRadius: "8px", padding: "6px 12px", cursor: "pointer", color: "#1a1a3a", fontSize: "12px", fontWeight: 600, fontFamily: "Inter, sans-serif", flexShrink: 0, boxShadow: "0 0 12px rgba(192, 193, 255, 0.4)", transition: "box-shadow 0.2s, transform 0.15s" }}
+                    onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 0 20px rgba(192, 193, 255, 0.7)"; e.currentTarget.style.transform = "scale(1.04)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "0 0 12px rgba(192, 193, 255, 0.4)"; e.currentTarget.style.transform = "scale(1)"; }}
                 >
-                    <svg width="13" height="13" fill="none" stroke="white" strokeWidth="2.2" viewBox="0 0 24 24">
+                    <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
                         <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
                     </svg>
                     AI Generate

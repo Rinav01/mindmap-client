@@ -107,12 +107,12 @@ function Node({ node, hasChildren, siblingIndex, isFaded }: Props) {
   const cx = NODE_W / 2;
   const cy = NODE_H / 2;
 
-  // Root: blue gradient fill; child: dark fill
+  // Root: primary gradient; child: surface_container_highest
   const fillColor = node.color
     ? node.color
     : isRoot
-      ? "#2563eb"
-      : "#1e293b";
+      ? `url(#gradient-${node._id})`
+      : "#31353b";
 
   const strokeColor = isRemotelyEditing
     ? remoteEditor.color
@@ -134,6 +134,14 @@ function Node({ node, hasChildren, siblingIndex, isFaded }: Props) {
       transform={`translate(${node.x}, ${node.y})`}
       className={`node-group ${isRoot ? "tutorial-node" : ""}`}
     >
+      {/* Gradient definition for root elements */}
+      <defs>
+        <linearGradient id={`gradient-${node._id}`} x1="0%" y1="0%" x2="100%" y2="100%" gradientTransform="rotate(45)">
+          <stop offset="0%" stopColor="#c0c1ff" />
+          <stop offset="100%" stopColor="#8083ff" />
+        </linearGradient>
+      </defs>
+
       {/* Collapse/Expand Toggle (only if children exist) */}
       {hasChildren && (
         <g
@@ -145,16 +153,16 @@ function Node({ node, hasChildren, siblingIndex, isFaded }: Props) {
           }}
           style={{ cursor: "pointer" }}
         >
-          <circle r="8" fill="#1e293b" stroke="#334155" strokeWidth="1.5" />
+          <circle r="8" fill="#1c2025" stroke="#464554" strokeWidth="1.5" />
           {node.collapsed ? (
             // Plus icon
-            <g stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round">
+            <g stroke="#908fa0" strokeWidth="1.5" strokeLinecap="round">
               <line x1="-3" y1="0" x2="3" y2="0" />
               <line x1="0" y1="-3" x2="0" y2="3" />
             </g>
           ) : (
             // Minus icon or chevron
-            <g stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round">
+            <g stroke="#908fa0" strokeWidth="1.5" strokeLinecap="round">
               <line x1="-3" y1="0" x2="3" y2="0" />
             </g>
           )}
@@ -247,13 +255,14 @@ function Node({ node, hasChildren, siblingIndex, isFaded }: Props) {
         {isSelected && (
           <rect
             className="selection-halo"
-            width={NODE_W}
-            height={NODE_H}
-            rx="10"
+            x="-7" y="-7"
+            width={NODE_W + 14}
+            height={NODE_H + 14}
+            rx="15"
             fill="none"
-            stroke="#60a5fa"
+            stroke="#c0c1ff"
             strokeWidth="8"
-            opacity="0.18"
+            opacity="0.15"
             style={{ filter: "blur(5px)", pointerEvents: 'none' }}
           />
         )}
@@ -277,15 +286,13 @@ function Node({ node, hasChildren, siblingIndex, isFaded }: Props) {
           />
         ))}
 
-        {/* Root node bottom accent line */}
+        {/* Root node top accent inner-shadow line logic */}
         {isRoot && (
-          <rect
-            x={NODE_W * 0.3}
-            y={NODE_H - 4}
-            width={NODE_W * 0.4}
-            height={3}
-            rx="2"
-            fill="rgba(255,255,255,0.35)"
+          <path 
+            d={`M 15 1 L ${NODE_W - 15} 1`}
+            stroke="rgba(255,255,255,0.4)"
+            strokeWidth="2"
+            fill="none"
           />
         )}
 
@@ -297,8 +304,8 @@ function Node({ node, hasChildren, siblingIndex, isFaded }: Props) {
           height={NODE_H}
           rx="10"
           fill={fillColor}
-          stroke={strokeColor}
-          strokeWidth={strokeWidth}
+          stroke={isRemotelyEditing ? strokeColor : "none"}
+          strokeWidth={isRemotelyEditing ? strokeWidth : 0}
           onClick={(e) => {
             if (isPanMode) return;
             e.stopPropagation();
@@ -438,7 +445,7 @@ function Node({ node, hasChildren, siblingIndex, isFaded }: Props) {
               y={cy + 1}
               textAnchor="middle"
               dominantBaseline="middle"
-              fill="white"
+              fill={isRoot ? "#1a1a3a" : "#e0e2ea"}
               fontSize={node.fontSize ?? 13}
               fontWeight={isRoot ? 700 : 500}
               fontFamily="Inter, sans-serif"
@@ -466,6 +473,17 @@ function Node({ node, hasChildren, siblingIndex, isFaded }: Props) {
               e.stopPropagation();
               if (id) createNode(id, node);
             }}
+          />
+        )}
+        {/* Inner top highlight to simulate lithic bevel */}
+        {!isRoot && (
+          <path
+            d={`M 10 1.5 L ${NODE_W - 10} 1.5`}
+            stroke="rgba(255,255,255,0.1)"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            fill="none"
+            pointerEvents="none"
           />
         )}
       </g>

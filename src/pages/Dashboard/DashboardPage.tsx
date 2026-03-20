@@ -1,12 +1,11 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Sidebar from "../../components/layout/Sidebar";
 import Topbar from "../../components/layout/Topbar";
 import { useNavigate } from "react-router-dom";
 import { useMapsStore } from "../../store/mapsStore";
 import type { Map } from "../../store/mapsStore";
-import { THUMBNAILS, TIER_COLORS, getTier } from "./MapThumbnails";
+import { getThumbnailForMap, TIER_COLORS, getTier } from "./MapThumbnails";
 import TemplateGallery from "../../components/dashboard/TemplateGallery";
-
 function relativeTime(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
@@ -37,11 +36,23 @@ function MapCard({
   const tier = getTier(nodeCount);
   const tierColor = TIER_COLORS[tier];
 
-  const thumbnail = THUMBNAILS[tier];
+  // Asymmetric spanning based on tier
+  const colSpan = tier === 2 ? 2 : 1;
+  const rowSpan = 1;
+
+  const thumbnail = getThumbnailForMap(map, tier);
+
+  const defaultDescCompact = "Core architecture and features mapping...";
+  const defaultDescDense = `Detailed investigation into abstract patterns and visual hierarchy. This cluster contains over ${nodeCount} interconnected nodes.`;
+  const description = map.description || (tier === 2 ? defaultDescDense : defaultDescCompact);
 
   return (
     <div
-      style={{ position: "relative", borderRadius: "14px", overflow: "hidden" }}
+      style={{ 
+        position: "relative", borderRadius: "14px", overflow: "hidden",
+        gridColumn: `span ${colSpan}`, gridRow: `span ${rowSpan}`,
+        display: "flex"
+      }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => { setHovered(false); setConfirmDelete(false); }}
     >
@@ -49,58 +60,105 @@ function MapCard({
       <button
         onClick={onOpen}
         style={{
-          display: "flex", flexDirection: "column", width: "100%",
-          background: "#1e293b",
-          border: `1px solid ${hovered ? tierColor : "#1f2937"}`,
-          borderRadius: "14px", cursor: "pointer", textAlign: "left",
+          display: "flex", flexDirection: tier === 2 ? "row" : "column", width: "100%", height: "100%",
+          background: "#12141a", border: "none", padding: 0,
+          borderRadius: "10px", cursor: "pointer", textAlign: "left",
           overflow: "hidden",
-          transition: "border-color 0.15s, transform 0.15s, box-shadow 0.15s",
+          transition: "background 0.15s, transform 0.15s, box-shadow 0.15s",
           transform: hovered ? "translateY(-2px)" : "translateY(0)",
-          boxShadow: hovered ? `0 8px 24px rgba(0,0,0,0.3)` : "0 1px 4px rgba(0,0,0,0.15)",
+          boxShadow: hovered ? `0 8px 24px rgba(0,0,0,0.3)` : "0 4px 12px rgba(0,0,0,0.1)",
         }}
       >
         {/* Thumbnail */}
         <div style={{
-          height: "110px", background: "#0f172a",
+          flex: tier === 2 ? "0 0 45%" : 1,
+          height: tier === 2 ? "100%" : "auto",
+          minHeight: tier === 2 ? "0" : "120px",
+          background: "#15171e",
           overflow: "hidden", position: "relative",
-          borderBottom: "1px solid #1f2937",
+          borderBottom: tier === 2 ? "none" : "1px solid rgba(255,255,255,0.02)",
+          borderRight: tier === 2 ? "1px solid rgba(255,255,255,0.02)" : "none",
         }}>
           {thumbnail}
-
-          {/* Gradient overlay */}
-          <div style={{
-            position: "absolute", inset: 0,
-            background: "linear-gradient(to bottom, transparent 60%, rgba(15,23,42,0.4))",
-          }} />
+          {tier !== 2 && (
+            <div style={{
+              position: "absolute", inset: 0,
+              background: "linear-gradient(to bottom, transparent 60%, #15171e)",
+            }} />
+          )}
         </div>
 
         {/* Info */}
-        <div style={{ padding: "12px 14px 14px" }}>
-          <div style={{
-            color: "white", fontSize: "13px", fontWeight: 600,
-            marginBottom: "6px", whiteSpace: "nowrap",
-            overflow: "hidden", textOverflow: "ellipsis",
-          }}>
-            {map.title}
-          </div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "5px", color: "#6b7280", fontSize: "11px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-              <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-              </svg>
-              Edited {relativeTime(map.updatedAt)}
-            </div>
-            <span style={{
-              fontSize: "10px", fontWeight: 700, letterSpacing: "0.04em",
-              color: tierColor,
-              background: `${tierColor}18`,
-              border: `1px solid ${tierColor}44`,
-              borderRadius: "99px", padding: "2px 8px",
-              whiteSpace: "nowrap",
-            }}>
-              {nodeCount} node{nodeCount !== 1 ? "s" : ""}
-            </span>
-          </div>
+        <div style={{ 
+          padding: tier === 2 ? "24px 32px" : "16px", 
+          flex: 1, display: "flex", flexDirection: "column",
+          justifyContent: tier === 2 ? "center" : "flex-start"
+        }}>
+          {tier === 2 ? (
+            <>
+              {/* Dense Map Layout Details */}
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px" }}>
+                <div style={{ color: "#e0e2ea", fontSize: "20px", fontWeight: 700, fontFamily: "Manrope, sans-serif" }}>
+                  {map.title}
+                </div>
+                <div style={{ background: "rgba(255,255,255,0.08)", color: "#c0c1ff", padding: "4px 8px", borderRadius: "4px", fontSize: "9px", fontWeight: 700, letterSpacing: "0.05em", flexShrink: 0 }}>
+                  ACTIVE FLOW
+                </div>
+              </div>
+              <div style={{ marginTop: "16px", color: "#8b949e", fontSize: "14px", lineHeight: "1.6", whiteSpace: "normal" }}>
+                {description}
+              </div>
+              <div style={{ flex: 1 }} />
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "24px" }}>
+                <div style={{ display: "flex", gap: "24px", color: "#e0e2ea", fontSize: "13px", fontWeight: 500 }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: "8px", color: "#a0a5b5" }}>
+                    <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                    {nodeCount} Nodes
+                  </span>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Standard Map Layout Details */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", marginBottom: "8px" }}>
+                <div style={{
+                  color: "#e0e2ea", fontSize: "15px", fontWeight: 700, fontFamily: "Manrope, sans-serif",
+                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                }}>
+                  {map.title}
+                </div>
+                {map.isStarred && (
+                  <svg width="14" height="14" fill="#3b82f6" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                  </svg>
+                )}
+              </div>
+              <div style={{ color: "#8b949e", fontSize: "12px", marginBottom: "16px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {description}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", color: "#6b7280", fontSize: "10px", fontWeight: 600, textTransform: "uppercase" }}>
+                 <div style={{ display: "flex", gap: "10px", color: "#8b949e" }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: "5px", color: "#a0a5b5" }}>
+                       <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                       {nodeCount} Nodes
+                    </span>
+                    <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                       UPDATED {relativeTime(map.updatedAt).toUpperCase()}
+                    </span>
+                 </div>
+                 {tier === 0 ? (
+                    <div style={{ background: `rgba(255,255,255,0.05)`, color: "#9ca3af", padding: "3px 8px", borderRadius: "4px", fontSize: "9px" }}>
+                       NEW
+                    </div>
+                 ) : (
+                    <div style={{ background: `${tierColor}1a`, color: tierColor, padding: "3px 8px", borderRadius: "4px", fontSize: "9px" }}>
+                       STRATEGY
+                    </div>
+                 )}
+              </div>
+            </>
+          )}
         </div>
       </button>
 
@@ -219,22 +277,28 @@ function TrashCard({
   const nodeCount = map.nodeCount ?? 1;
   const tier = getTier(nodeCount);
   const tierColor = TIER_COLORS[tier];
+  const colSpan = tier === 2 ? 2 : 1;
+  const rowSpan = 1;
 
   return (
     <div
-      style={{ position: "relative", borderRadius: "14px", overflow: "hidden" }}
+      style={{ 
+        position: "relative", borderRadius: "14px", overflow: "hidden",
+        gridColumn: `span ${colSpan}`, gridRow: `span ${rowSpan}`,
+        display: "flex"
+      }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => { setHovered(false); setConfirmPerm(false); }}
     >
       {/* Card body */}
       <div style={{
-        display: "flex", flexDirection: "column",
-        background: "#1e293b", opacity: 0.75,
-        border: "1px solid #1f2937", borderRadius: "14px", overflow: "hidden",
+        display: "flex", flexDirection: "column", width: "100%", height: "100%",
+        background: "#1c2025", opacity: 0.75,
+        border: "none", borderRadius: "14px", overflow: "hidden",
       }}>
         {/* Thumbnail */}
-        <div style={{ height: "110px", background: "#0f172a", overflow: "hidden", position: "relative", borderBottom: "1px solid #1f2937" }}>
-          {THUMBNAILS[tier]}
+        <div style={{ flex: 1, minHeight: "80px", background: "#101419", overflow: "hidden", position: "relative", borderBottom: "none" }}>
+          {getThumbnailForMap(map, tier)}
           {/* Red tint overlay */}
           <div style={{ position: "absolute", inset: 0, background: "rgba(239,68,68,0.06)" }} />
         </div>
@@ -348,6 +412,7 @@ export default function DashboardPage({ view = "all" }: { view?: ViewMode }) {
   } = useMapsStore();
   const [displayMode, setDisplayMode] = useState<"grid" | "list">("grid");
   const [search, setSearch] = useState("");
+  const [activeTab, setActiveTab] = useState<"projects" | "templates">("projects");
 
   useEffect(() => {
     if (view === "trash") loadTrash();
@@ -384,278 +449,322 @@ export default function DashboardPage({ view = "all" }: { view?: ViewMode }) {
   const isTrash = view === "trash";
 
   return (
-    <div style={{ display: "flex", height: "100vh", background: "#0f172a", fontFamily: "Inter, sans-serif" }}>
-      <Sidebar />
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "#15171e", fontFamily: "Inter, sans-serif" }}>
+      {/* Global Top Bar */}
+      <Topbar activeTab={activeTab} onTabChange={setActiveTab} />
 
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        {/* Top bar */}
-        <div style={{ padding: "20px 28px 0", borderBottom: "1px solid #1f2937" }}>
-          <Topbar onNewMap={isTrash ? undefined : handleCreate} />
-        </div>
+      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+        <Sidebar />
 
         {/* Content */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "28px" }}>
-
-          <TemplateGallery view={view} />
-
-          {/* Heading + controls row */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px", gap: "16px", flexWrap: "wrap" }}>
-            <div>
-              <h1 style={{ margin: 0, fontSize: "22px", fontWeight: 700, color: "white", letterSpacing: "-0.3px" }}>
-                {meta.title}
-              </h1>
-              <p style={{ margin: "4px 0 0", color: "#6b7280", fontSize: "13px" }}>
-                {meta.subtitle(displayList.length)}
-              </p>
-            </div>
-
-            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-              {/* Search */}
-              <div style={{ position: "relative" }}>
-                <svg
-                  style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}
-                  width="12" height="12" fill="none" stroke="#6b7280" strokeWidth="2" viewBox="0 0 24 24"
-                >
-                  <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-                </svg>
-                <input
-                  placeholder="Search maps..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  style={{
-                    padding: "7px 12px 7px 30px",
-                    background: "#1f2937", border: "1px solid #374151",
-                    borderRadius: "8px", color: "white", fontSize: "12px",
-                    fontFamily: "Inter, sans-serif", outline: "none", width: "170px",
-                  }}
-                />
-              </div>
-
-              {/* Grid / List toggle */}
-              <div style={{ display: "flex", gap: "4px", background: "#1f2937", borderRadius: "8px", padding: "3px" }}>
-                {(["grid", "list"] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    onClick={() => setDisplayMode(mode)}
-                    style={{
-                      padding: "5px 8px", borderRadius: "6px", border: "none", cursor: "pointer",
-                      background: displayMode === mode ? "#374151" : "transparent",
-                      color: displayMode === mode ? "white" : "#6b7280",
-                      display: "flex", alignItems: "center",
-                    }}
-                  >
-                    {mode === "grid" ? (
-                      <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24">
-                        <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" />
-                        <rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
-                      </svg>
-                    ) : (
-                      <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
-                      </svg>
-                    )}
-                  </button>
-                ))}
-              </div>
-
-              {/* New Map button â€” hidden in trash */}
-              {!isTrash && (
-                <button
-                  onClick={handleCreate}
-                  style={{
-                    padding: "7px 14px", borderRadius: "8px",
-                    background: "#2563eb", color: "white",
-                    border: "none", cursor: "pointer",
-                    fontSize: "12px", fontWeight: 600,
-                    display: "flex", alignItems: "center", gap: "6px",
-                    transition: "background 0.15s", fontFamily: "Inter, sans-serif",
-                  }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#1d4ed8"; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#2563eb"; }}
-                >
-                  <span style={{ fontSize: "16px", lineHeight: 1 }}>+</span> New Map
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Trash notice banner */}
-          {isTrash && (
-            <div style={{
-              marginBottom: "20px", padding: "10px 16px",
-              background: "rgba(239,68,68,0.07)", border: "1px solid rgba(239,68,68,0.2)",
-              borderRadius: "10px", color: "#fca5a5", fontSize: "12px",
-              display: "flex", alignItems: "center", gap: "8px",
-            }}>
-              <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
-              </svg>
-              Items in Trash are permanently deleted after 30 days.
-            </div>
-          )}
-
-          {/* Empty state */}
-          {displayList.length === 0 && (
-            <div style={{
-              display: "flex", flexDirection: "column", alignItems: "center",
-              justifyContent: "center", gap: "16px",
-              height: "320px",
-            }}>
-              <span style={{ fontSize: "48px" }}>{meta.emptyIcon}</span>
-              <div style={{ fontSize: "15px", color: "#6b7280", fontWeight: 500 }}>
-                {search ? `No maps matching "${search}"` : meta.emptyMsg}
-              </div>
-              {!search && !isTrash && (
-                <button
-                  onClick={handleCreate}
-                  style={{
-                    padding: "9px 20px", borderRadius: "8px",
-                    background: "#2563eb", color: "white",
-                    border: "none", cursor: "pointer",
-                    fontSize: "13px", fontWeight: 600,
-                    fontFamily: "Inter, sans-serif",
-                  }}
-                >
-                  Create your first map
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Grid view */}
-          {displayMode === "grid" && displayList.length > 0 && (
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-              gap: "16px",
-            }}>
-              {isTrash
-                ? displayList.map((map) => (
-                  <TrashCard
-                    key={map._id}
-                    map={map}
-                    onRestore={() => restoreMap(map._id)}
-                    onDeleteForever={() => permanentlyDeleteMap(map._id)}
-                  />
-                ))
-                : displayList.map((map) => (
-                  <MapCard
-                    key={map._id}
-                    map={map}
-                    onOpen={() => navigate(`/editor/${map._id}`)}
-                    onDelete={() => deleteMap(map._id)}
-                    onToggleStar={() => toggleStar(map._id)}
-                  />
-                ))
-              }
-            </div>
-          )}
-
-          {/* List view */}
-          {displayMode === "list" && displayList.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-              {displayList.map((map) => (
-                <div
-                  key={map._id}
-                  style={{
-                    display: "flex", alignItems: "center",
-                    padding: "12px 16px", gap: "12px",
-                    background: "#1e293b", border: "1px solid #1f2937",
-                    borderRadius: "10px", transition: "border-color 0.15s", cursor: "default",
-                  }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "#334155"; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "#1f2937"; }}
-                >
-                  <div style={{
-                    width: "36px", height: "36px", borderRadius: "8px",
-                    background: "#0f172a", flexShrink: 0,
-                    display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px",
+        <div style={{ flex: 1, overflowY: "auto", padding: "32px 48px", display: "flex", flexDirection: "column" }}>
+          
+          {activeTab === "templates" ? (
+            <TemplateGallery />
+          ) : (
+            <>
+              {/* Heading + controls row */}
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "40px", gap: "16px", flexWrap: "wrap" }}>
+                <div style={{ maxWidth: "600px" }}>
+                  <h1 style={{ margin: 0, fontSize: "28px", fontWeight: 700, color: "#fff", letterSpacing: "-0.5px", fontFamily: "Manrope, sans-serif" }}>
+                    {view === "all" ? "Project Canvas" : meta.title}
+                  </h1>
+                  <p style={{ margin: "8px 0 0", color: "#9ca3af", fontSize: "14px", lineHeight: 1.6 }}>
+                    {view === "all" 
+                       ? "Manage your architectural thought clusters and deep-work nodes. Use asymmetric layouts to map complex mental models."
+                       : meta.subtitle(displayList.length)}
+                  </p>
+                </div>
+    
+                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                  {/* Search */}
+                  <div style={{ position: "relative" }}>
+                    <svg
+                      style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}
+                      width="12" height="12" fill="none" stroke="#6b7280" strokeWidth="2" viewBox="0 0 24 24"
+                    >
+                      <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                    <input
+                      placeholder="Search maps..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      style={{
+                        padding: "7px 12px 7px 30px",
+                        background: "#1c2025", border: "none", borderBottom: "2px solid transparent",
+                        borderRadius: "8px 8px 0 0", color: "#e0e2ea", fontSize: "12px",
+                        fontFamily: "Inter, sans-serif", outline: "none", width: "170px",
+                        transition: "border-bottom 0.2s, box-shadow 0.2s"
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderBottomColor = "#c0c1ff";
+                        e.currentTarget.style.boxShadow = "0 8px 15px -5px rgba(192, 193, 255, 0.15)";
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderBottomColor = "transparent";
+                        e.currentTarget.style.boxShadow = "none";
+                      }}
+                    />
+                  </div>
+    
+                  {/* Grid / List toggle */}
+                  <div style={{ display: "flex", gap: "4px", background: "#1f2937", borderRadius: "8px", padding: "3px" }}>
+                    {(["grid", "list"] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        onClick={() => setDisplayMode(mode)}
+                        style={{
+                          padding: "5px 8px", borderRadius: "6px", border: "none", cursor: "pointer",
+                          background: displayMode === mode ? "#374151" : "transparent",
+                          color: displayMode === mode ? "white" : "#6b7280",
+                          display: "flex", alignItems: "center",
+                        }}
+                      >
+                        {mode === "grid" ? (
+                          <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24">
+                            <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" />
+                            <rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
+                          </svg>
+                        ) : (
+                          <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+                          </svg>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+    
+                  {/* Recently Edited Dropdown (Visual Only) */}
+                  <button style={{
+                    display: "flex", alignItems: "center", gap: "8px", background: "#1f2937", border: "none", color: "#e0e2ea",
+                    fontSize: "13px", fontWeight: 500, padding: "8px 14px", borderRadius: "6px", cursor: "pointer",
                   }}>
-                    {isTrash ? "🗑️" : "🗂️"}
-                  </div>
-
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ color: "white", fontSize: "13px", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {map.title}
-                    </div>
-                    <div style={{ color: "#6b7280", fontSize: "11px", marginTop: "2px" }}>
-                      {isTrash ? `Deleted ${relativeTime(map.deletedAt!)}` : `Edited ${relativeTime(map.updatedAt)}`}
-                    </div>
-                  </div>
-
-                  <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
-                    {isTrash ? (
-                      <>
-                        <button
-                          onClick={() => restoreMap(map._id)}
-                          style={{
-                            padding: "5px 12px", borderRadius: "6px",
-                            background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.3)",
-                            color: "#34d399", fontSize: "11px", fontWeight: 600,
-                            cursor: "pointer", fontFamily: "Inter, sans-serif",
-                          }}
-                        >
-                          Restore
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (window.confirm(`Permanently delete "${map.title}"? This cannot be undone.`)) {
-                              permanentlyDeleteMap(map._id);
-                            }
-                          }}
-                          style={{
-                            padding: "5px 10px", borderRadius: "6px",
-                            background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)",
-                            color: "#f87171", fontSize: "11px",
-                            cursor: "pointer", fontFamily: "Inter, sans-serif",
-                          }}
-                        >
-                          Delete Forever
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => toggleStar(map._id)}
-                          style={{ background: "none", border: "none", color: map.isStarred ? "#f59e0b" : "#4b5563", cursor: "pointer", padding: "4px" }}
-                        >
-                          <svg width="14" height="14" fill={map.isStarred ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => navigate(`/editor/${map._id}`)}
-                          style={{
-                            padding: "5px 12px", borderRadius: "6px",
-                            background: "#1f2937", border: "1px solid #374151",
-                            color: "white", fontSize: "11px", fontWeight: 600,
-                            cursor: "pointer", fontFamily: "Inter, sans-serif",
-                          }}
-                        >
-                          Open
-                        </button>
-                        <button
-                          onClick={() => deleteMap(map._id)}
-                          style={{
-                            padding: "5px 8px", borderRadius: "6px",
-                            background: "transparent", border: "1px solid transparent",
-                            color: "#6b7280", fontSize: "11px", cursor: "pointer",
-                            transition: "color 0.15s, border-color 0.15s",
-                          }}
-                          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#f87171"; (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(239,68,68,0.3)"; }}
-                          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#6b7280"; (e.currentTarget as HTMLButtonElement).style.borderColor = "transparent"; }}
-                        >
-                          <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                            <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6M9 6V4h6v2" />
-                          </svg>
-                        </button>
-                      </>
-                    )}
+                    <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="21" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="21" y1="18" x2="3" y2="18"/></svg>
+                    Recently Edited
+                  </button>
+                </div>
+              </div>
+    
+              {/* Trash notice banner */}
+              {isTrash && (
+                <div style={{
+                  marginBottom: "20px", padding: "10px 16px",
+                  background: "rgba(239,68,68,0.07)", border: "1px solid rgba(239,68,68,0.2)",
+                  borderRadius: "10px", color: "#fca5a5", fontSize: "12px",
+                  display: "flex", alignItems: "center", gap: "8px",
+                }}>
+                  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                  Items in Trash are permanently deleted after 30 days.
+                </div>
+              )}
+    
+              {/* Empty state */}
+              {displayList.length === 0 && search && (
+                <div style={{
+                  display: "flex", flexDirection: "column", alignItems: "center",
+                  justifyContent: "center", gap: "16px",
+                  height: "320px",
+                }}>
+                  <div style={{ fontSize: "15px", color: "#6b7280", fontWeight: 500 }}>
+                    No maps matching "{search}"
                   </div>
                 </div>
-              ))}
-            </div>
+              )}
+    
+              {/* Grid view */}
+              {displayMode === "grid" && (
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: (displayList.length === 0 && !search && !isTrash) ? "340px" : "repeat(auto-fill, minmax(320px, 1fr))",
+                  justifyContent: (displayList.length === 0 && !search && !isTrash) ? "center" : "start",
+                  gridAutoRows: "240px",
+                  gridAutoFlow: "dense",
+                  gap: "24px",
+                  marginTop: (displayList.length === 0 && !search && !isTrash) ? "80px" : "0",
+                }}>
+                  {!isTrash && (
+                    <button
+                      onClick={handleCreate}
+                      style={{
+                        display: "flex", flexDirection: "column",
+                        alignItems: "center", justifyContent: "center",
+                        height: "100%",
+                        background: "transparent", border: "1px dashed rgba(255,255,255,0.1)",
+                        borderRadius: "10px", cursor: "pointer",
+                        transition: "background 0.15s, border-color 0.15s",
+                      }}
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.02)";
+                        (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.2)";
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                        (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.1)";
+                      }}
+                    >
+                      <div style={{
+                        width: "36px", height: "36px", borderRadius: "8px",
+                        background: "#2d333b", color: "#c0c1ff",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        marginBottom: "16px"
+                      }}>
+                        <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                        </svg>
+                      </div>
+                      <div style={{ color: "#e0e2ea", fontSize: "15px", fontWeight: 700, fontFamily: "Manrope, sans-serif", marginBottom: "4px" }}>New Project</div>
+                      <div style={{ color: "#6b7280", fontSize: "13px" }}>Start from a blank slate</div>
+                    </button>
+                  )}
+                  {isTrash
+                    ? displayList.map((map) => (
+                      <TrashCard
+                        key={map._id}
+                        map={map}
+                        onRestore={() => restoreMap(map._id)}
+                        onDeleteForever={() => permanentlyDeleteMap(map._id)}
+                      />
+                    ))
+                    : displayList.map((map) => (
+                      <MapCard
+                        key={map._id}
+                        map={map}
+                        onOpen={() => navigate(`/editor/${map._id}`)}
+                        onDelete={() => deleteMap(map._id)}
+                        onToggleStar={() => toggleStar(map._id)}
+                      />
+                    ))
+                  }
+                </div>
+              )}
+    
+              {/* List view */}
+              {displayMode === "list" && displayList.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  {displayList.map((map) => (
+                    <div
+                      key={map._id}
+                      style={{
+                        display: "flex", alignItems: "center",
+                        padding: "12px 16px", gap: "12px",
+                        background: "#1e293b", border: "1px solid #1f2937",
+                        borderRadius: "10px", transition: "border-color 0.15s", cursor: "default",
+                      }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "#334155"; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "#1f2937"; }}
+                    >
+                      <div style={{
+                        width: "36px", height: "36px", borderRadius: "8px",
+                        background: "#0f172a", flexShrink: 0,
+                        display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px",
+                      }}>
+                        {isTrash ? "🗑️" : "🗂️"}
+                      </div>
+    
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ color: "#e0e2ea", fontSize: "13px", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {map.title}
+                        </div>
+                        <div style={{ color: "#8b949e", fontSize: "11px", marginTop: "2px" }}>
+                          {isTrash ? `Deleted ${relativeTime(map.deletedAt!)}` : `Edited ${relativeTime(map.updatedAt)}`}
+                        </div>
+                      </div>
+    
+                      <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
+                        {isTrash ? (
+                          <>
+                            <button
+                              onClick={() => restoreMap(map._id)}
+                              style={{
+                                padding: "5px 12px", borderRadius: "6px",
+                                background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.3)",
+                                color: "#34d399", fontSize: "11px", fontWeight: 600,
+                                cursor: "pointer", fontFamily: "Inter, sans-serif",
+                              }}
+                            >
+                              Restore
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (window.confirm(`Permanently delete "${map.title}"? This cannot be undone.`)) {
+                                  permanentlyDeleteMap(map._id);
+                                }
+                              }}
+                              style={{
+                                padding: "5px 10px", borderRadius: "6px",
+                                background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)",
+                                color: "#f87171", fontSize: "11px",
+                                cursor: "pointer", fontFamily: "Inter, sans-serif",
+                              }}
+                            >
+                              Delete Forever
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => toggleStar(map._id)}
+                              style={{ background: "none", border: "none", color: map.isStarred ? "#f59e0b" : "#4b5563", cursor: "pointer", padding: "4px" }}
+                            >
+                              <svg width="14" height="14" fill={map.isStarred ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => navigate(`/editor/${map._id}`)}
+                              style={{
+                                padding: "5px 12px", borderRadius: "6px",
+                                background: "#1f2937", border: "1px solid #374151",
+                                color: "white", fontSize: "11px", fontWeight: 600,
+                                cursor: "pointer", fontFamily: "Inter, sans-serif",
+                              }}
+                            >
+                              Open
+                            </button>
+                            <button
+                              onClick={() => deleteMap(map._id)}
+                              style={{
+                                padding: "5px 8px", borderRadius: "6px",
+                                background: "transparent", border: "1px solid transparent",
+                                color: "#6b7280", fontSize: "11px", cursor: "pointer",
+                                transition: "color 0.15s, border-color 0.15s",
+                              }}
+                              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#f87171"; (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(239,68,68,0.3)"; }}
+                              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#6b7280"; (e.currentTarget as HTMLButtonElement).style.borderColor = "transparent"; }}
+                            >
+                              <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6M9 6V4h6v2" />
+                              </svg>
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
+
+          {/* Footer */}
+          <div style={{
+            marginTop: "auto", paddingTop: "24px",
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            color: "#6b7280", fontSize: "12px", borderTop: "1px solid rgba(255,255,255,0.05)"
+          }}>
+            <div>
+              <div style={{ color: "#e0e2ea", fontWeight: 700, fontSize: "14px", fontFamily: "Manrope, sans-serif", marginBottom: "6px" }}>Cognitive Slate</div>
+              <div>© 2024 Cognitive Slate. Built for Architectural Depth.</div>
+            </div>
+            <div style={{ display: "flex", gap: "24px" }}>
+              <a href="#" style={{ color: "#6b7280", textDecoration: "none" }}>Privacy</a>
+              <a href="#" style={{ color: "#6b7280", textDecoration: "none" }}>Terms</a>
+              <a href="#" style={{ color: "#6b7280", textDecoration: "none" }}>API Docs</a>
+              <a href="#" style={{ color: "#6b7280", textDecoration: "none" }}>Changelog</a>
+            </div>
+          </div>
 
         </div>
       </div>

@@ -50,15 +50,16 @@ import { useAuthStore } from "../../store/authStore";
 export default function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuthStore();
+  const { logout } = useAuthStore();
 
   return (
     <div
       style={{
-        width: "210px",
-        minWidth: "210px",
-        background: "#111827",
-        borderRight: "1px solid #1f2937",
+        width: "240px",
+        minWidth: "240px",
+        background: "#12141a",
+        borderRight: "none",
+        boxShadow: "4px 0 20px rgba(0,0,0,0.15)",
         display: "flex",
         flexDirection: "column",
         height: "100vh",
@@ -66,21 +67,16 @@ export default function Sidebar() {
         fontFamily: "Inter, sans-serif",
       }}
     >
-      {/* Logo */}
-      <div style={{ padding: "20px 16px 16px", display: "flex", alignItems: "center", gap: "10px" }}>
-        <div style={{
-          width: "32px", height: "32px", background: "linear-gradient(135deg, #3b82f6, #2563eb)",
-          borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-        }}>
-          <svg width="18" height="18" fill="white" viewBox="0 0 24 24">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z" />
-          </svg>
-        </div>
-        <span style={{ color: "white", fontWeight: 700, fontSize: "16px", letterSpacing: "-0.3px" }}>MindFlow</span>
+      {/* Workspace Logo */}
+      <div style={{ padding: "32px 20px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <img src="/vite.svg" alt="Vite Logo" style={{ height: "64px", width: "auto" }} />
       </div>
 
       {/* Nav */}
-      <nav style={{ padding: "4px 8px", flex: "0 0 auto" }}>
+      <div style={{ padding: "0 20px 16px", fontSize: "10px", fontWeight: 700, color: "#6b7280", letterSpacing: "0.05em", textTransform: "uppercase" }}>
+        Navigation
+      </div>
+      <nav style={{ padding: "0 12px", flex: "0 0 auto", display: "flex", flexDirection: "column", gap: "2px" }}>
         {navItems.map((item) => {
           const isActive = location.pathname === item.path;
           return (
@@ -89,15 +85,14 @@ export default function Sidebar() {
               onClick={() => navigate(item.path)}
               style={{
                 display: "flex", alignItems: "center", gap: "10px",
-                width: "100%", padding: "9px 10px", borderRadius: "8px",
+                width: "100%", padding: "10px 12px", borderRadius: "8px",
                 border: "none", cursor: "pointer", textAlign: "left",
-                background: isActive ? "#1d4ed8" : "transparent",
-                color: isActive ? "white" : "#9ca3af",
-                fontSize: "14px", fontWeight: isActive ? 600 : 400,
+                background: isActive ? "#21262d" : "transparent",
+                color: isActive ? "#e0e2ea" : "#9ca3af",
+                fontSize: "13px", fontWeight: isActive ? 600 : 500,
                 transition: "background 0.15s, color 0.15s",
-                marginBottom: "2px",
               }}
-              onMouseEnter={(e) => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.background = "#1f2937"; (e.currentTarget as HTMLButtonElement).style.color = "white"; } }}
+              onMouseEnter={(e) => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.background = "#1c2025"; (e.currentTarget as HTMLButtonElement).style.color = "#e0e2ea"; } }}
               onMouseLeave={(e) => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; } }}
             >
               {item.icon}
@@ -108,22 +103,22 @@ export default function Sidebar() {
       </nav>
 
       {/* Folders */}
-      <div style={{ padding: "16px 8px 8px", flex: 1 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 10px 8px" }}>
-          <span style={{ color: "#6b7280", fontSize: "11px", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>Folders</span>
-          <button style={{ background: "none", border: "none", color: "#6b7280", cursor: "pointer", fontSize: "18px", lineHeight: 1, padding: "0 2px" }}>+</button>
+      <div style={{ padding: "24px 12px 8px", flex: 1 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 8px 12px" }}>
+          <span style={{ color: "#6b7280", fontSize: "10px", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" }}>Folders</span>
+          <button style={{ background: "none", border: "none", color: "#6b7280", cursor: "pointer", fontSize: "16px", lineHeight: 1, padding: "0" }}>+</button>
         </div>
         {folders.map((f) => (
           <button
             key={f.label}
             style={{
               display: "flex", alignItems: "center", gap: "10px",
-              width: "100%", padding: "8px 10px", borderRadius: "8px",
+              width: "100%", padding: "8px 12px", borderRadius: "8px",
               border: "none", cursor: "pointer", textAlign: "left",
-              background: "transparent", color: "#9ca3af", fontSize: "13px",
-              transition: "background 0.15s, color 0.15s", marginBottom: "2px",
+              background: "transparent", color: "#9ca3af", fontSize: "13px", fontWeight: 500,
+              transition: "background 0.15s, color 0.15s",
             }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#1f2937"; (e.currentTarget as HTMLButtonElement).style.color = "white"; }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#1c2025"; (e.currentTarget as HTMLButtonElement).style.color = "#e0e2ea"; }}
             onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; }}
           >
             <span style={{ width: "12px", height: "12px", borderRadius: "3px", background: f.color, flexShrink: 0, display: "inline-block" }} />
@@ -132,36 +127,50 @@ export default function Sidebar() {
         ))}
       </div>
 
-      {/* User */}
+      {/* Bottom Actions */}
       <div style={{
-        padding: "12px 16px", borderTop: "1px solid #1f2937",
-        display: "flex", alignItems: "center", gap: "10px",
+        padding: "16px 12px 24px", borderTop: "none",
+        display: "flex", flexDirection: "column", gap: "4px",
       }}>
-        <div style={{
-          width: "34px", height: "34px", borderRadius: "50%",
-          background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          color: "white", fontSize: "13px", fontWeight: 700, flexShrink: 0,
-        }}>{user?.name?.charAt(0)?.toUpperCase() || 'U'}</div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ color: "white", fontSize: "13px", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{user?.name || "User"}</div>
-          <div style={{ color: "#6b7280", fontSize: "11px" }}>{user?.email || "Pro Account"}</div>
-        </div>
+        <button
+          onClick={() => {}}
+          style={{
+            display: "flex", alignItems: "center", gap: "12px",
+            width: "100%", padding: "10px 12px", borderRadius: "8px",
+            background: "none", border: "none", cursor: "pointer", textAlign: "left",
+            color: "#9ca3af", fontSize: "13px", fontWeight: 500,
+            transition: "color 0.15s, background 0.15s"
+          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#e0e2ea"; (e.currentTarget as HTMLButtonElement).style.background = "#1c2025"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+        >
+          <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          Help
+        </button>
+
         <button
           onClick={() => {
-            logout();
-            navigate("/login");
+            if (window.confirm("Do you want to logout?")) {
+              logout();
+              navigate("/login");
+            }
           }}
-          title="Logout"
-          style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", padding: "2px", transition: "color 0.15s" }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#ef4444"; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#6b7280"; }}
+          style={{
+            display: "flex", alignItems: "center", gap: "12px",
+            width: "100%", padding: "10px 12px", borderRadius: "8px",
+            background: "none", border: "none", cursor: "pointer", textAlign: "left",
+            color: "#9ca3af", fontSize: "13px", fontWeight: 500,
+            transition: "color 0.15s, background 0.15s"
+          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#ef4444"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.1)"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
         >
           <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
             <polyline points="16 17 21 12 16 7" />
             <line x1="21" y1="12" x2="9" y2="12" />
           </svg>
+          Logout
         </button>
       </div>
     </div>

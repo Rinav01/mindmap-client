@@ -1,24 +1,28 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 html, body {
   overflow-x: hidden;
   margin: 0;
   padding: 0;
+  background-color: var(--color-surface);
+  color: var(--color-on-surface);
 }
 
 
 @theme {
-  --color-primary: #2b8cee;
-  --color-background-dark: #101922;
-  --color-surface: #1a2530;
-  --color-border: #2d3a4b;
+  --color-primary: #c0c1ff;
+  --color-background-dark: #101419;
+  --color-surface: #101419;
+  --color-on-surface: #e0e2ea;
+  --color-border: #464554;
 }
 
 /* Custom canvas grid */
 .canvas-grid {
+  background-color: var(--color-surface);
   background-size: 40px 40px;
-  background-image: radial-gradient(circle, #2b8cee33 1px, transparent 1px);
+  background-image: radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px);
 }
 
 @keyframes slide-in {

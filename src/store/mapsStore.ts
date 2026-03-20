@@ -9,6 +9,7 @@ export interface Map {
   createdAt: string;
   deletedAt?: string | null;
   nodeCount: number;
+  description?: string;
 }
 
 interface MapsState {

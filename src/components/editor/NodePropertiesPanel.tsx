@@ -66,23 +66,23 @@ export default function NodePropertiesPanel() {
 
     const inputStyle: React.CSSProperties = {
         width: "100%", padding: "10px 12px",
-        background: "#0f172a", border: "1px solid #334155",
-        borderRadius: "8px", color: "white", fontSize: "13px",
+        background: "#12161b", border: "none", borderBottom: "2px solid transparent",
+        borderRadius: "8px 8px 0 0", color: "#e0e2ea", fontSize: "13px",
         fontFamily: "Inter, sans-serif", outline: "none",
-        boxSizing: "border-box",
+        boxSizing: "border-box", transition: "border-bottom 0.2s, box-shadow 0.2s",
     };
 
     return (
         <div style={{
             position: "fixed", top: 0, right: 0, height: "100%", width: "280px",
-            background: "#111827", borderLeft: "1px solid #1f2937",
+            background: "#1c2025", borderLeft: "none", boxShadow: "-10px 0 40px rgba(0,0,0,0.2)",
             zIndex: 50, display: "flex", flexDirection: "column",
             fontFamily: "Inter, sans-serif", overflowY: "auto",
         }}>
             {/* Header */}
             <div style={{
                 display: "flex", alignItems: "center", justifyContent: "space-between",
-                padding: "18px 18px 14px", borderBottom: "1px solid #1f2937",
+                padding: "18px 18px 14px", borderBottom: "none",
             }}>
                 <span style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", color: "#9ca3af", textTransform: "uppercase" }}>
                     Node Properties
@@ -131,7 +131,8 @@ export default function NodePropertiesPanel() {
                         }}
                         style={{ ...inputStyle, opacity: isDisabled ? 0.5 : 1 }}
                         onFocus={(e) => {
-                            e.currentTarget.style.borderColor = "#3b82f6";
+                            e.currentTarget.style.borderBottomColor = "#c0c1ff";
+                            e.currentTarget.style.boxShadow = "0 8px 15px -5px rgba(192, 193, 255, 0.15)";
                             broadcastEditing(selectedNode._id);
                         }}
                         autoComplete="off"
@@ -153,14 +154,16 @@ export default function NodePropertiesPanel() {
                             lineHeight: "1.5",
                         }}
                         onFocus={(e) => {
-                            e.currentTarget.style.borderColor = "#3b82f6";
+                            e.currentTarget.style.borderBottomColor = "#c0c1ff";
+                            e.currentTarget.style.boxShadow = "0 8px 15px -5px rgba(192, 193, 255, 0.15)";
                             broadcastEditing(selectedNode._id);
                         }}
                         onBlur={(e) => {
                             if (notes !== (selectedNode.notes || "")) {
                                 updateNodeNotes(selectedNode._id, notes);
                             }
-                            e.currentTarget.style.borderColor = "#334155";
+                            e.currentTarget.style.borderBottomColor = "transparent";
+                            e.currentTarget.style.boxShadow = "none";
                             broadcastEditingStopped(selectedNode._id);
                         }}
                         autoComplete="off"
@@ -318,8 +321,8 @@ export default function NodePropertiesPanel() {
                                 placeholder="Add a comment..."
                                 style={{
                                     flex: 1, padding: "8px 12px",
-                                    background: "#0f172a", border: "1px solid #334155",
-                                    borderRadius: "8px", color: "white", fontSize: "12px",
+                                    background: "#12161b", border: "none",
+                                    borderRadius: "8px", color: "#e0e2ea", fontSize: "12px",
                                     fontFamily: "Inter, sans-serif", outline: "none",
                                 }}
                             />
@@ -332,11 +335,11 @@ export default function NodePropertiesPanel() {
                                 }}
                                 disabled={!newComment.trim()}
                                 style={{
-                                    background: newComment.trim() ? "#2563eb" : "#1e293b",
-                                    color: newComment.trim() ? "white" : "#6b7280",
+                                    background: newComment.trim() ? "linear-gradient(135deg, #c0c1ff, #8083ff)" : "#1e293b",
+                                    color: newComment.trim() ? "#1a1a3a" : "#6b7280",
                                     border: "none", borderRadius: "8px", padding: "0 12px",
                                     cursor: newComment.trim() ? "pointer" : "not-allowed",
-                                    transition: "background 0.15s, color 0.15s"
+                                    transition: "filter 0.15s, color 0.15s"
                                 }}
                             >
                                 <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -355,15 +358,15 @@ export default function NodePropertiesPanel() {
                     onClick={() => deleteSelectedNodes()}
                     style={{
                         width: "100%", padding: "11px",
-                        background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)",
+                        background: "transparent", border: "1px solid rgba(70, 69, 84, 0.2)",
                         borderRadius: "9px", color: "#f87171", fontSize: "12px", fontWeight: 700,
                         cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "7px",
                         letterSpacing: "0.08em", textTransform: "uppercase",
                         transition: "background 0.15s, border-color 0.15s",
                         fontFamily: "Inter, sans-serif",
                     }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.2)"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#ef4444"; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.1)"; (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(239,68,68,0.3)"; }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#31353b"; (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(70, 69, 84, 0.8)"; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(70, 69, 84, 0.2)"; }}
                 >
                     <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                         <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" />

@@ -191,9 +191,9 @@ export default function FloatingToolbar({ onDelete }: Props) {
         <div style={{
             position: "fixed", bottom: "28px", left: "50%", transform: "translateX(-50%)",
             display: "flex", alignItems: "center", gap: "4px",
-            background: "#1e293b", border: "1px solid #334155",
-            borderRadius: "14px", padding: "6px 10px",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+            background: "rgba(54, 57, 63, 0.8)", border: "none", backdropFilter: "blur(20px)",
+            borderRadius: "9999px", padding: "6px 10px",
+            boxShadow: "0 10px 40px rgba(192, 193, 255, 0.08)",
             zIndex: 40, fontFamily: "Inter, sans-serif",
         }}>
             {toolItems.map((item, i) => (
@@ -207,24 +207,24 @@ export default function FloatingToolbar({ onDelete }: Props) {
                         background: "transparent", border: "none",
                         cursor: item.disabled ? "not-allowed" : "pointer",
                         color: item.disabled
-                            ? "#4b5563"
+                            ? "#464554" // outline_variant
                             : item.danger ? "#f87171" 
-                            : item.ai && !isExpanding ? "#d946ef" // special color for AI
-                            : "#9ca3af",
-                        padding: "8px", borderRadius: "9px",
+                            : item.ai && !isExpanding ? "#cebdff" // tertiary
+                            : "#e0e2ea", // on_surface
+                        padding: "8px", borderRadius: "9999px",
                         display: "flex", alignItems: "center", justifyContent: "center",
                         transition: "background 0.15s, color 0.15s, box-shadow 0.15s",
                         opacity: item.disabled ? 0.45 : 1,
                     }}
                     onMouseEnter={(e) => {
                         if (item.disabled) return;
-                        (e.currentTarget as HTMLButtonElement).style.background = "#334155";
-                        (e.currentTarget as HTMLButtonElement).style.color = item.danger ? "#ef4444" : item.ai ? "#f0abfc" : "white";
+                        (e.currentTarget as HTMLButtonElement).style.background = "#31353b"; // surface_container_highest
+                        (e.currentTarget as HTMLButtonElement).style.color = item.danger ? "#ef4444" : item.ai ? "#cebdff" : "#ffffff";
                     }}
                     onMouseLeave={(e) => {
                         if (item.disabled) return;
                         (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-                        (e.currentTarget as HTMLButtonElement).style.color = item.danger ? "#f87171" : item.ai && !isExpanding ? "#d946ef" : "#9ca3af";
+                        (e.currentTarget as HTMLButtonElement).style.color = item.danger ? "#f87171" : item.ai && !isExpanding ? "#cebdff" : "#e0e2ea";
                     }}
                 >
                     {item.icon}
@@ -247,12 +247,12 @@ export default function FloatingToolbar({ onDelete }: Props) {
                                 transition: "background 0.15s, color 0.15s",
                             }}
                             onMouseEnter={(e) => {
-                                (e.currentTarget as HTMLButtonElement).style.background = "#334155";
-                                (e.currentTarget as HTMLButtonElement).style.color = "white";
+                                (e.currentTarget as HTMLButtonElement).style.background = "#31353b";
+                                (e.currentTarget as HTMLButtonElement).style.color = "#ffffff";
                             }}
                             onMouseLeave={(e) => {
                                 (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-                                (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af";
+                                (e.currentTarget as HTMLButtonElement).style.color = "#e0e2ea";
                             }}
                         >
                             {item.icon}
@@ -277,12 +277,12 @@ export default function FloatingToolbar({ onDelete }: Props) {
                                 transition: "background 0.15s, color 0.15s",
                             }}
                             onMouseEnter={(e) => {
-                                (e.currentTarget as HTMLButtonElement).style.background = "#334155";
-                                (e.currentTarget as HTMLButtonElement).style.color = "white";
+                                (e.currentTarget as HTMLButtonElement).style.background = "#31353b";
+                                (e.currentTarget as HTMLButtonElement).style.color = "#ffffff";
                             }}
                             onMouseLeave={(e) => {
                                 (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-                                (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af";
+                                (e.currentTarget as HTMLButtonElement).style.color = "#e0e2ea";
                             }}
                         >
                             {item.icon}
