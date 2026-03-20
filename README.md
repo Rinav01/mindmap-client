@@ -27,9 +27,9 @@
 
 ## 🌐 Live Demo & Previews
 
-> 🔗 **Live App:** `https://mindmap-client-nu.vercel.app/` *(deploy and update this link)*
+> 🔗 **Live App:** `https://mindmap-client-nu.vercel.app/` 
 >
-> 📹 **Video Walkthrough:** `https://your-loom-link` *(record a 2-min Loom)*
+> 📹 **Video Walkthrough:** `https://your-loom-link` 
 >
 > 📦 **Backend API:** `https://mindmap-server-wr7o.onrender.com`
 
