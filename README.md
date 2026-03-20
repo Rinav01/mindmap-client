@@ -27,11 +27,11 @@
 
 ## 🌐 Live Demo & Previews
 
-> 🔗 **Live App:** `https://your-app.vercel.app` *(deploy and update this link)*
+> 🔗 **Live App:** `https://mindmap-client-nu.vercel.app/` *(deploy and update this link)*
 >
 > 📹 **Video Walkthrough:** `https://your-loom-link` *(record a 2-min Loom)*
 >
-> 📦 **Backend API:** `https://your-api.railway.app`
+> 📦 **Backend API:** `https://mindmap-server-wr7o.onrender.com`
 
 ### Screenshots
 
