@@ -164,12 +164,16 @@ export const createNodeSlice: SliceCreator<NodeSlice> = (set, get) => ({
 
     createNode: async (mindMapId, parent) => {
         const newId = generateObjectId();
+        const siblingCount = get().nodes.filter(n => n.parentId === parent._id).length;
+        const V_GAP = 100;
+        // Zigzag: 0, +1, -1, +2, -2, ...
+        const yOffset = siblingCount === 0 ? 0 : Math.ceil(siblingCount / 2) * V_GAP * (siblingCount % 2 === 1 ? 1 : -1);
         const newNode: NodeType = {
             _id: newId,
             text: "New Node",
             notes: "",
             x: parent.x + 200,
-            y: parent.y,
+            y: parent.y + yOffset,
             parentId: parent._id,
             collapsed: false,
         };

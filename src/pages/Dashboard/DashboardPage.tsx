@@ -218,9 +218,10 @@ function MapCard({
             }}
           >
             <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <polyline points="3 6 5 6 21 6" />
+              <path d="M3 6h18" />
               <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-              <path d="M10 11v6M14 11v6" />
+              <path d="M10 11v6" />
+              <path d="M14 11v6" />
               <path d="M9 6V4h6v2" />
             </svg>
           </button>
@@ -252,7 +253,7 @@ function MapCard({
                 cursor: "pointer", fontFamily: "Inter, sans-serif",
               }}
             >
-              âœ•
+              <svg width="8" height="8" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" /></svg>
             </button>
           </div>
         )}
@@ -345,7 +346,8 @@ function TrashCard({
             cursor: "pointer", fontFamily: "Inter, sans-serif", width: "140px",
           }}
         >
-          â†º Restore
+          <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" style={{ marginRight: 4, verticalAlign: "middle" }}><path d="M1 4v6h6" /><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" /></svg>
+          Restore
         </button>
 
         {!confirmPerm ? (
@@ -735,7 +737,7 @@ export default function DashboardPage({ view = "all" }: { view?: ViewMode }) {
                               onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#6b7280"; (e.currentTarget as HTMLButtonElement).style.borderColor = "transparent"; }}
                             >
                               <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6M9 6V4h6v2" />
+                                <path d="M3 6h18" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4h6v2" />
                               </svg>
                             </button>
                           </>
