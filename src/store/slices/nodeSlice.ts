@@ -135,7 +135,7 @@ export const createNodeSlice: SliceCreator<NodeSlice> = (set, get) => ({
     },
 
     loadNodes: async (mindMapId) => {
-        set({ isLoadingMap: true, mindMapId });
+        set({ isLoadingMap: true, mindMapId, nodes: [] });
         
         // 1. Instant local restore
         const _db = await import('../indexedDb').then(m => m.dbOptions);
@@ -144,7 +144,7 @@ export const createNodeSlice: SliceCreator<NodeSlice> = (set, get) => ({
             set({ nodes: localNodes, isLoadingMap: false }); // Render immediately
         }
 
-        // 2. Background sync from server
+        // 2. Background sync from server — MERGE, don't replace
         try {
             const [nodesRes, mapRes] = await Promise.all([
                 api.get(`/mindmaps/${mindMapId}/nodes`),
@@ -152,10 +152,27 @@ export const createNodeSlice: SliceCreator<NodeSlice> = (set, get) => ({
             ]);
             
             const serverNodes = (nodesRes.data || []).map(normalizeNode);
-            set({ nodes: serverNodes, mapTitle: mapRes.data?.title ?? "", isLoadingMap: false });
+            const serverNodeIds = new Set(serverNodes.map((n: NodeType) => n._id));
+
+            // Check the pending operation queue for un-synced CREATE_NODE ops
+            const pendingQueue = await _db.getOperationQueue();
+            const pendingCreateIds = new Set(
+                pendingQueue
+                    .filter(op => op.type === 'CREATE_NODE' && op.mapId === mindMapId)
+                    .map(op => op.nodeId)
+            );
+
+            // Preserve any locally-created nodes that the server doesn't know about yet
+            const currentNodes = get().nodes;
+            const localOnlyNodes = currentNodes.filter(
+                n => !serverNodeIds.has(n._id) && pendingCreateIds.has(n._id)
+            );
+
+            const mergedNodes = [...serverNodes, ...localOnlyNodes];
+            set({ nodes: mergedNodes, mapTitle: mapRes.data?.title ?? "", isLoadingMap: false });
             
-            // Backup server truth to local store
-            await _db.saveLocalMapState(mindMapId, serverNodes);
+            // Backup merged state to local store
+            await _db.saveLocalMapState(mindMapId, mergedNodes);
         } catch (err) { 
             console.error("Failed to load map/nodes from server, retaining local if available:", err); 
             set({ isLoadingMap: false }); 
@@ -181,7 +198,7 @@ export const createNodeSlice: SliceCreator<NodeSlice> = (set, get) => ({
         get().pushHistory();
         
         const user = useAuthStore.getState().user;
-        dispatchOperation('CREATE_NODE', mindMapId, newId, { parentId: parent._id, x: newNode.x, y: newNode.y }, user);
+        dispatchOperation('CREATE_NODE', mindMapId, newId, { parentId: parent._id, x: newNode.x, y: newNode.y, text: newNode.text }, user);
         
         socketService.emitNodeAdded(newNode);
     },

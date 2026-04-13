@@ -14,7 +14,7 @@ import VersionPanel from "../../components/editor/VersionPanel";
 import ActivityPanel from "../../components/editor/ActivityPanel";
 import { socketService } from "../../services/socket";
 import type { NodeType, LiveCursor, NodeCommentType } from "../../store/editorStore";
-import { CLIENT_ID } from "../../store/operationDispatcher";
+import { CLIENT_ID, flushSync } from "../../store/operationDispatcher";
 import SkeletonEditor from "../../components/editor/SkeletonEditor";
 import OnboardingTour from "../../components/editor/OnboardingTour";
 import AdvancedFeatureHighlight from "../../components/editor/AdvancedFeatureHighlight";
@@ -167,6 +167,8 @@ export default function EditorPage() {
       socketService.on("comment-deleted", handleCommentDeleted);
 
       return () => {
+        // Flush pending operations to server before leaving the editor
+        flushSync();
         socketService.off("node-added", handleNodeAdded);
         socketService.off("node-dragged", handleNodeDragged);
         socketService.off("node-updated", handleNodeUpdated);

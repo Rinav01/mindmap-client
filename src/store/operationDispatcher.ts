@@ -148,7 +148,16 @@ const debouncedSync = () => {
     _syncTimer = setTimeout(() => {
         _syncTimer = null;
         syncOperationQueue();
-    }, 300);
+    }, 1500);
+};
+
+/** Cancel pending debounce and sync immediately. Call before navigating away. */
+export const flushSync = () => {
+    if (_syncTimer) {
+        clearTimeout(_syncTimer);
+        _syncTimer = null;
+    }
+    syncOperationQueue();
 };
 
 // ─── Sync engine ───────────────────────────────────────────────────────────────
