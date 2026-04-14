@@ -9,6 +9,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Node](https://img.shields.io/badge/Node.js-20+-339933?style=flat-square&logo=node.js)](https://nodejs.org/)
 
+![MindFlow Hero](./docs/landing.png)
+
 > **A real-time collaborative mind mapping application** built on a custom SVG infinite canvas engine with offline-first editing, WebSocket-based multi-user sync, AI-powered map generation via Groq, and a zero-re-render drag system — designed to rival tools like Miro and Whimsical at the architecture level.
 
 ---
@@ -29,21 +31,18 @@
 
 > 🔗 **Live App:** `https://mindmap-client-nu.vercel.app/` 
 >
-> 📹 **Video Walkthrough:** `https://your-loom-link` 
->
+
 > 📦 **Backend API:** `https://mindmap-server-wr7o.onrender.com`
 
 ### Screenshots
 
-| Infinite Canvas | AI Generation & Collaboration |
+| Dashboard View | Infinite Canvas Editor |
 |:---:|:---:|
-| ![Infinite canvas with mind map nodes](https://raw.githubusercontent.com/your-username/mindmap-client/main/docs/canvas.png) | ![AI generation modal and live cursors](https://raw.githubusercontent.com/your-username/mindmap-client/main/docs/ai-collab.png) |
+| ![Dashboard](./docs/dashboard.png) | ![Editor](./docs/editor.png) |
 
-| Focus Mode | Node Properties & Comments |
+| User Login | Create Account |
 |:---:|:---:|
-| ![Focus mode with faded nodes](https://raw.githubusercontent.com/your-username/mindmap-client/main/docs/focus.png) | ![Node properties panel with comments](https://raw.githubusercontent.com/your-username/mindmap-client/main/docs/comments.png) |
-
-> 📝 **To add real screenshots:** Place images in `docs/` in the repo root and update the URLs above, or use GitHub's issue upload trick (drag images into an issue, copy the URL).
+| ![Login](./docs/login.png) | ![Sign Up](./docs/signup.png) |
 
 ---
 
