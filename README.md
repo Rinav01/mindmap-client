@@ -20,7 +20,7 @@
 | Resource | Link |
 |---|---|
 | 🖥️ **Frontend Repo** (this) | `mindmap-client` |
-| ⚙️ **Backend Repo** | [`mindmap-server`](../mindmap-server) |
+| ⚙️ **Backend Repo** | [`mindmap-server`](https://github.com/Rinav01/mindmap-server) |
 | 📡 **API Reference** | [API Reference →](#-api-reference-summary) |
 | 🏗️ **Architecture** | [Architecture →](#️-architecture) |
 | 🚀 **Getting Started** | [Setup →](#-getting-started) |
