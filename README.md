@@ -31,7 +31,6 @@
 
 > 🔗 **Live App:** `https://mindmap-client-nu.vercel.app/` 
 >
-
 > 📦 **Backend API:** `https://mindmap-server-wr7o.onrender.com`
 
 ### Screenshots
